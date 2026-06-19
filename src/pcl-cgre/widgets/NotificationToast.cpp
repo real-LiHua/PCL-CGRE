@@ -41,6 +41,7 @@ struct ToastData {
     std::string   desc;
     bool          skip_center = false;
     bool          can_clear   = true;
+    std::function<void()> on_click;
 };
 
 /* ============================================================================
@@ -95,6 +96,7 @@ void show_toast(GtkWindow* win, const ToastConfig& cfg)
     td->desc        = cfg.desc;
     td->skip_center = !cfg.add_to_center;
     td->can_clear   = cfg.can_clear;
+    td->on_click    = cfg.on_click;
     td->ticks_left  = ticks;
     td->ticks_total = ticks;
     td->timer_id   = 0;
@@ -183,6 +185,17 @@ void show_toast(GtkWindow* win, const ToastConfig& cfg)
     gtk_widget_set_margin_bottom(prog, 2);
     gtk_box_append(GTK_BOX(toast), prog);
     td->progress = prog;
+
+    /* 点击回调 */
+    if (td->on_click) {
+        GtkGesture* click = gtk_gesture_click_new();
+        g_signal_connect(click, "pressed",
+            G_CALLBACK(+[](GtkGesture*, int, double, double, gpointer d) {
+                auto* td2 = static_cast<ToastData*>(d);
+                if (td2->on_click) td2->on_click();
+            }), td);
+        gtk_widget_add_controller(toast, GTK_EVENT_CONTROLLER(click));
+    }
 
     /* ── 悬停暂停倒计时 ── */
     {

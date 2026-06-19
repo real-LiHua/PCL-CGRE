@@ -63,3 +63,10 @@ __pycache__/
 Thumbs.db
 .DS_Store?
 ._*
+
+
+# Referred Projects
+reference/*
+
+# Others
+dev-docs/*

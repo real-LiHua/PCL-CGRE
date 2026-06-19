@@ -147,6 +147,47 @@ static std::string build_css_impl(bool is_dark, const std::string& accent) {
         "  border-color: " + s(c(RED_LIGHT, dark::RED_LIGHT)) + ";\n"
         "  background-color: " + s(c(RED_LIGHT, dark::RED_LIGHT)) + "; transition: all 100ms ease-out; }\n"
         "\n"
+        /* ── 切换按钮 (仅作用于 .pcl-app 窗口) ── */
+        ".pcl-app button.toggle {\n"
+        "  border: 1px solid " + s(c(BLUE_5, dark::BLUE_5)) + "; border-radius: 3px;\n"
+        "  background-color: " + s(c(BTN_BG_NORMAL, dark::BTN_BG_NORMAL)) + ";\n"
+        "  color: " + s(c(BLUE_1, dark::BLUE_1)) + "; font-size: 10pt; padding: 6px 16px;\n"
+        "  transition: all 200ms ease-out; }\n"
+        ".pcl-app button.toggle:hover {\n"
+        "  border-color: " + ACCENT + "; background-color: " + s(c(BLUE_7, dark::BLUE_7)) +
+        "; color: " + ACCENT + "; transition: all 100ms ease-out; }\n"
+        ".pcl-app button.toggle:checked, .pcl-app button.toggle:active {\n"
+        "  border-color: " + ACCENT + "; background-color: " + ACCENT + "; color: white;\n"
+        "  font-weight: 600; }\n"
+        ".pcl-app button.toggle:checked:hover {\n"
+        "  border-color: " + ACCENT + "; background-color: " + ACCENT + ";\n"
+        "  opacity: 0.88; }\n"
+        "\n"
+        /* ── linked 容器内切换按钮处理 ── */
+        ".pcl-app .linked button.toggle { border-radius: 0; margin: 0; }\n"
+        ".pcl-app .linked button.toggle:first-child { border-radius: 3px 0 0 3px; }\n"
+        ".pcl-app .linked button.toggle:last-child { border-radius: 0 3px 3px 0; }\n"
+        ".pcl-app .linked button.toggle + button.toggle { border-left: none; }\n"
+        "\n"
+        /* ── 进度条自定义 ── */
+        ".pcl-app progressbar trough {\n"
+        "  border-radius: 2px; min-height: 4px;\n"
+        "  background-color: " + s(c(BLUE_6, dark::BLUE_6)) + "; }\n"
+        ".pcl-app progressbar progress {\n"
+        "  border-radius: 2px;\n"
+        "  background: linear-gradient(to right, " + s(c(BLUE_4, dark::BLUE_4)) + ", " + ACCENT + "); }\n"
+        "\n"
+        /* ── Scale/Slider 自定义 ── */
+        ".pcl-app scale trough {\n"
+        "  border: 1px solid " + s(c(BLUE_5, dark::BLUE_5)) + "; border-radius: 3px;\n"
+        "  min-height: 6px; background-color: " + s(c(BTN_BG_NORMAL, dark::BTN_BG_NORMAL)) + "; }\n"
+        ".pcl-app scale trough highlight {\n"
+        "  border-radius: 2px; background-color: " + ACCENT + "; }\n"
+        ".pcl-app scale trough slider {\n"
+        "  border: 1px solid " + ACCENT + "; border-radius: 9999px;\n"
+        "  min-width: 14px; min-height: 14px;\n"
+        "  background-color: white; box-shadow: 0 1px 3px rgba(0,0,0,0.18); }\n"
+        "\n"
         /* ── 胶囊按钮 ── */
         ".pill-button { border-radius: 9999px; padding: 12px 28px; font-weight: 600; }\n"
         ".pill-button.suggested-action { border-radius: 3px; }\n"
@@ -323,12 +364,6 @@ static std::string build_css_impl(bool is_dark, const std::string& accent) {
         ".placeholder .ph-title { font-size: 24pt; font-weight: 300; opacity: 0.55;\n"
         "  color: " + s(c(BLUE_1, dark::BLUE_1)) + "; }\n"
         "\n"
-        /* ── progressbar ── */
-        ".pcl-app progressbar trough { border-radius: 2px; min-height: 4px; background-color: " +
-        s(c(BLUE_6, dark::BLUE_6)) + "; }\n"
-        ".pcl-app progressbar progress { border-radius: 2px;\n"
-        "  background: linear-gradient(to right, " + s(c(BLUE_4, dark::BLUE_4)) + ", " + ACCENT + "); }\n"
-        "\n"
         /* ── version-actions ── */
         ".version-actions { opacity: 0; transition: opacity 120ms ease-out; }\n"
         ".version-actions.visible { opacity: 1; }\n"
@@ -375,6 +410,16 @@ static std::string build_css_impl(bool is_dark, const std::string& accent) {
         /* ── settings-category ── */
         ".settings-category-header { font-size: 12px; opacity: 0.6; color: " +
         s(c(BLUE_1, dark::BLUE_1)) + "; margin: 13px 5px 5px 3px; }\n"
+        "\n"
+        /* ── settings expander ── */
+        ".settings-expander { margin-top: 4px; }\n"
+        ".settings-expander > expander > box { background-color: transparent; }\n"
+        "\n"
+        /* ── memory bar ── */
+        ".settings-memory-bar { min-height: 22px; border-radius: 4px; overflow: hidden; }\n"
+        ".mem-used { background-color: " + ACCENT + "; border-radius: 4px 0 0 4px; }\n"
+        ".mem-free { background-color: " + hex_to_rgba(c(BLUE_5, dark::BLUE_5), 0.30) +
+        "; border-radius: 0 4px 4px 0; }\n"
         "\n"
         /* ── ack-avatar ── */
         ".ack-avatar { border-radius: 9999px; background-color: " + s(c(BLUE_6, dark::BLUE_6)) +

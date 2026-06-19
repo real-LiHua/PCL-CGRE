@@ -1,13 +1,17 @@
 #include "pages/SettingsPage.hpp"
 #include "pages/LaunchPage.hpp"
 #include "core/Colors.hpp"
+#include "core/ConfigManager.hpp"
 #include "util/IconHelper.hpp"
 #include "pclcore/pclcore.hpp"
+#include "widgets/NotificationToast.hpp"
 
+#include <cstdio>
 #include <functional>
+#include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
-#include <adwaita.h>
 
 namespace pcl {
 
@@ -107,6 +111,33 @@ GtkWidget* build_labeled_slider(const char* label_text,
     return row;
 }
 
+/* ── 创建 card 容器 — 带标题的圆角卡片 ────────────────────────────────── */
+[[maybe_unused]]
+GtkWidget* build_card(const char* title, GtkWidget* content)
+{
+    GtkWidget* card = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+    gtk_widget_add_css_class(card, "card");
+    gtk_widget_set_margin_bottom(card, 16);
+
+    GtkWidget* title_lbl = gtk_label_new(title);
+    gtk_widget_add_css_class(title_lbl, "card-title");
+    gtk_widget_set_halign(title_lbl, GTK_ALIGN_START);
+    gtk_widget_set_margin_start(title_lbl, 20);
+    gtk_widget_set_margin_end(title_lbl, 20);
+    gtk_widget_set_margin_top(title_lbl, 16);
+    gtk_box_append(GTK_BOX(card), title_lbl);
+
+    if (content) {
+        gtk_widget_set_margin_start(content, 20);
+        gtk_widget_set_margin_end(content, 20);
+        gtk_widget_set_margin_top(content, 12);
+        gtk_widget_set_margin_bottom(content, 16);
+        gtk_box_append(GTK_BOX(card), content);
+    }
+
+    return card;
+}
+
 /* ── 占位设置页面 — 从 Blueprint 加载, 动态设置标题 ───────────────── */
 static GtkWidget* build_placeholder(const char* title)
 {
@@ -121,11 +152,6 @@ static GtkWidget* build_placeholder(const char* title)
     g_object_unref(b);
     return page;
 }
-
-/* 各页面的薄封装 (匹配 reg_page 的函数签名) */
-static GtkWidget* build_ph_placeholder()   { return build_placeholder("(待实现)"); }
-static GtkWidget* build_ph_feedback()    { return build_placeholder("反馈"); }
-static GtkWidget* build_ph_log()         { return build_placeholder("日志"); }
 
 }  // anonymous namespace
 
@@ -149,22 +175,33 @@ GtkWidget* build_settings_page()
     gtk_widget_set_valign(right_stack, GTK_ALIGN_FILL);
     gtk_widget_set_hexpand(right_stack, TRUE);
 
-    /* 将各个子页面 builder 包装后注册到右栏 stack */
+    /* 将各个子页面 builder 包装后注册到右栏 stack
+     * 同时保存 builder 引用到 map, 供回滚时重建页面
+     *
+     * 每页外层包一个 GtkBox wrapper: GtkStack 的子页是 wrapper,
+     * 回滚时只需替换 wrapper 内容, 永不触碰 GtkStack 子页列表,
+     * 从而彻底避免 gtk_stack_remove 引发的自动切页 / 导航损坏 */
+    auto page_builders = std::make_shared<std::unordered_map<std::string, std::function<GtkWidget*()>>>();
     auto reg_page = [&](const char* name, std::function<GtkWidget*()> builder) {
+        (*page_builders)[name] = builder;
+        GtkWidget* wrapper = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+        gtk_widget_set_vexpand(wrapper, TRUE);
+        gtk_widget_set_hexpand(wrapper, TRUE);
         GtkWidget* page = builder();
-        gtk_stack_add_named(GTK_STACK(right_stack), page, name);
+        gtk_box_append(GTK_BOX(wrapper), page);
+        gtk_stack_add_named(GTK_STACK(right_stack), wrapper, name);
     };
 
-    reg_page("page-launch-set",   build_ph_placeholder);    // P1: 占位, 待实现
-    reg_page("page-java",         build_ph_placeholder);    // P1: 占位, 待实现
-    reg_page("page-game-manage",  build_ph_placeholder);    // P1: 占位, 待实现
-    reg_page("page-ui",           build_ph_placeholder);    // P2: 占位, 待实现
-    reg_page("page-language",     build_ph_placeholder);    // P2: 占位, 待实现
-    reg_page("page-misc",         build_ph_placeholder);    // P2: 占位, 待实现
-    reg_page("page-about",        build_page_about);         // P3: 占位, 待实现
-    reg_page("page-update",       build_page_update);        // P3: 占位, 待实现
-    reg_page("page-feedback",     build_ph_feedback);        // 占位
-    reg_page("page-log",          build_ph_log);             // 占位
+    reg_page("page-launch-set",   build_page_launch_set);     // P1: ✓ 已实现
+    reg_page("page-java",         build_page_java_mgmt);      // P1: ✓ 已实现
+    reg_page("page-game-manage",  build_page_game_manage);    // P1: ✓ 已实现
+    reg_page("page-ui",           build_page_ui);           // P2: ✓ 已实现
+    reg_page("page-language",     build_page_language);     // P2: ✓ 已实现
+    reg_page("page-misc",         build_page_misc);         // P2: ✓ 已实现
+    reg_page("page-about",        build_page_about);        // P3: ✓ 已实现
+    reg_page("page-update",       build_page_update);       // P3: ✓ 已实现
+    reg_page("page-feedback",     build_page_feedback);     // P3: ✓ 已实现
+    reg_page("page-log",          build_page_log);          // P3: ✓ 已实现
 
     /* 实例 & 账号占位页面 — 动态注册, 匹配 libpclcore 数据 */
     {
@@ -448,7 +485,69 @@ GtkWidget* build_settings_page()
     gtk_widget_set_size_request(right_stack, 280, -1);
     gtk_paned_set_end_child(GTK_PANED(paned2), right_stack);
     gtk_paned_set_position(GTK_PANED(paned2), 210);  // 初始位置 210px
+
+    /* 子页面切换 → 静默保存 (不弹 Toast) */
+    g_signal_connect(right_stack, "notify::visible-child-name",
+        G_CALLBACK(+[](GObject*, GParamSpec*, gpointer) {
+            ConfigManager::instance().save_silent();
+        }), nullptr);
+
+    /* ConfigManager 保存回调 → 展示自定义 Toast */
+    ConfigManager::instance().set_save_callback(
+        [paned = paned1](bool show) {
+            if (!show) return;
+            auto* win = GTK_WINDOW(gtk_widget_get_root(paned));
+            pcl::ToastConfig cfg;
+            cfg.type         = "info";
+            cfg.title        = "设置已自动保存";
+            cfg.desc         = "点击此通知回滚";
+            cfg.add_to_center = false;
+            cfg.can_clear    = false;
+            cfg.duration_ms  = 1600;
+            cfg.on_click     = []() { ConfigManager::instance().rollback(); };
+            show_toast(win, cfg);
+        });
+
+    /* ConfigManager 回滚回调 → 替换当前页内容 (不触碰 GtkStack 子页列表) */
+    ConfigManager::instance().set_rollback_callback(
+        [paned = paned1, right_stack, page_builders]() {
+            const char* cur = gtk_stack_get_visible_child_name(GTK_STACK(right_stack));
+            if (!cur || !page_builders->count(cur)) return;
+            auto& builder = (*page_builders)[cur];
+
+            /* wrapper 是 GtkStack 的直接子页, 永不增删;
+             * 只替换其内部内容, 避免 gtk_stack_remove 引发的:
+             *   - GTK 自动切到其他子页 → notify::visible-child-name → save_silent()
+             *   - 导航状态损坏 → 切走后无法切回 */
+            GtkWidget* wrapper = gtk_stack_get_child_by_name(GTK_STACK(right_stack), cur);
+            if (!GTK_IS_BOX(wrapper)) return;
+
+            GtkWidget* old_page = gtk_widget_get_first_child(wrapper);
+            if (old_page) gtk_box_remove(GTK_BOX(wrapper), old_page);
+
+            GtkWidget* new_page = builder();
+            gtk_box_append(GTK_BOX(wrapper), new_page);
+
+            /* 重建时控件初始化触发的 set() / set_json() 等值调用
+             * 已被 dedup 拦截; clear_backup() 清理残余 */
+            ConfigManager::instance().clear_backup();
+
+            auto* win = GTK_WINDOW(gtk_widget_get_root(paned));
+            pcl::ToastConfig cfg;
+            cfg.type         = "info";
+            cfg.title        = "设置已回滚";
+            cfg.add_to_center = false;
+            cfg.can_clear    = false;
+            cfg.duration_ms  = 1600;
+            show_toast(win, cfg);
+        });
     gtk_paned_set_end_child(GTK_PANED(paned1), paned2);
+
+    /* 离开设置页时立即保存 (切换到其他顶层标签页 / 窗口失焦) */
+    g_signal_connect(paned1, "unmap",
+        G_CALLBACK(+[](GtkWidget*, gpointer) {
+            ConfigManager::instance().save_silent();
+        }), nullptr);
 
     /* 存储关键控件, 供外部 (如启动页) 导航到特定子项 */
     g_object_set_data(G_OBJECT(paned1), "settings-left-nav", left);

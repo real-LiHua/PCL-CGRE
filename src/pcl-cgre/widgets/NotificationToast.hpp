@@ -2,6 +2,7 @@
 
 #include <gtk/gtk.h>
 #include <string>
+#include <functional>
 
 namespace pcl {
 
@@ -16,6 +17,7 @@ struct ToastConfig {
     bool        add_to_center = true;  // 超时后是否加入通知中心
     bool        can_clear      = true; // 是否可被"清理通知"垃圾桶按钮清除
     int         duration_ms    = 3000; // 倒计时 (毫秒, 默认 3 秒)
+    std::function<void()> on_click;    // 点击 Toast 时的回调
 };
 
 /**

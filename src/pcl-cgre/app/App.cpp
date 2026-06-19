@@ -3,6 +3,7 @@
 #include "util/IconHelper.hpp"
 #include "util/FontHelper.hpp"
 #include "core/Log.hpp"
+#include "core/ConfigManager.hpp"
 
 /* ============================================================================
  * PclApplication — GTK 应用包装类
@@ -56,6 +57,11 @@ void PclApplication::on_startup(GtkApplication* app, gpointer user_data)
     // Register the PCL-CGRE icon theme with GTK before any widgets
     // are created.  Must be called before on_activate.
     pcl::icon::init_icon_theme();
+
+    // 初始化配置管理器 (加载或创建 global.json)
+    pcl::ConfigManager::instance().init();
+    LOG_INFO("ConfigManager initialized: %s",
+             pcl::ConfigManager::instance().config_path().c_str());
 
     // 跟随系统颜色方案
     adw_style_manager_set_color_scheme(

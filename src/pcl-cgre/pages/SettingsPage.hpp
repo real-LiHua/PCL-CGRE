@@ -41,4 +41,10 @@ GtkWidget* build_page_about();
 /** 更新 (§4.2.9) */
 GtkWidget* build_page_update();
 
+/** 反馈 */
+GtkWidget* build_page_feedback();
+
+/** 日志 */
+GtkWidget* build_page_log();
+
 }  // namespace pcl
