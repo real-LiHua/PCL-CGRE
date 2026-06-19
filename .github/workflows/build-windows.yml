@@ -5,6 +5,13 @@ on:
 jobs:
   build:
     runs-on: windows-latest
+    strategy:
+    matrix:
+      include:
+        - { sys: mingw64, env: x86_64 }
+        - { sys: mingw32, env: i686 }
+        - { sys: ucrt64,  env: ucrt-x86_64 }
+        - { sys: clang64, env: clang-x86_64 }
     defaults:
       run:
         shell: msys2 {0}
@@ -12,15 +19,23 @@ jobs:
       - name: checkout code
         uses: actions/checkout@v7
 
-      - name: install dependencies
-        shell: msys2 {0}
-        run: |
-          pacman -S mingw-w64-ucrt-x86_64-gtk4 mingw-w64-ucrt-x86_64-libadwaita \
-          mingw-w64-ucrt-x86_64-fontconfig mingw-w64-ucrt-x86_64-libsoup3 \
-          mingw-w64-ucrt-x86_64-libcurl mingw-w64-ucrt-x86_64-json-glib \
-          mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-cmake \
-          mingw-w64-ucrt-x86_64-make \
-          mingw-w64-ucrt-x86_64-nlohmann-json
+      - name: setup MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          system: ${{ matrix.sys }}
+          update: true
+          install: >-
+            mingw-w64-ucrt-x86_64-gtk4
+            mingw-w64-ucrt-x86_64-libadwaita
+            mingw-w64-ucrt-x86_64-fontconfig
+            mingw-w64-ucrt-x86_64-libsoup3
+            mingw-w64-ucrt-x86_64-curl
+            mingw-w64-ucrt-x86_64-json-glib
+            mingw-w64-ucrt-x86_64-nlohmann-json
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-cmake
+            mingw-w64-ucrt-x86_64-make
+            mingw-w64-ucrt-x86_64-blueprint-compiler
 
       - name: build
         run: |
