@@ -1,4 +1,4 @@
-name: build
+name: build-linux
 
 on:
   push:
@@ -29,3 +29,13 @@ jobs:
           name: PCL-CGRE
           path: |
             ./build/pcl-cgre
+            ./build/pcl-cgre_debug
+
+      - name: create release
+        uses: softprops/action-gh-release@v3
+        with:
+          files: |
+            ./build/pcl-cgre
+            ./build/pcl-cgre_debug
+        env:
+          GITHUB_TOKEN: ${{ secrets.gh_TOKEN }}
