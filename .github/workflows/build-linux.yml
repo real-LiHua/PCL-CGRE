@@ -14,7 +14,9 @@ jobs:
       - name: install dependencies
         run: |
           sudo apt update
-          sudo apt install cmake gtk4 libadwaita fontconfig libsoup3 libcurl json-glib adwaita-icon-theme
+          sudo apt install libgtk-4-dev libadwaita-1-dev libfontconfig-dev \
+          libsoup-3.0-dev libcurl4-openssl-dev libjson-glib-dev cmake g++ \
+          blueprint-compiler libglib2.0-dev-bin
 
       - name: build
         run: |
