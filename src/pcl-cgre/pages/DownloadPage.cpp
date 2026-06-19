@@ -59,6 +59,8 @@ struct ResourceWidgets {
     std::vector<std::string> search_history;  // 最近 ≤8 条
     resource::ProjectType project_type;  // 资源类别
     bool default_loaded = false;         // 是否已触发过默认浏览加载
+    bool history_triggers_search = true; // 点击历史项是否触发搜索 (收藏页为 false)
+    unsigned search_generation = 0;      // 每次搜索/翻页自增; 异步回调据此丢弃过期结果
 
     // 分页
     int current_page = 0;              // 0-based
@@ -169,6 +171,299 @@ static const char* project_type_icon(resource::ProjectType t)
 }
 
 /* ============================================================================
+ *  辅助: 从 UI 控件读取当前筛选条件 (do_resource_search / do_page_nav 共用)
+ * ============================================================================ */
+struct SearchFilters {
+    std::string              query;
+    resource::Source         source = resource::Source::All;
+    std::string              version;
+    resource::SortType       sort   = resource::SortType::Default;
+    resource::CompLoaderType loader = resource::CompLoaderType::Any;
+};
+
+static SearchFilters read_search_filters(ResourceWidgets* rw)
+{
+    SearchFilters f;
+
+    if (rw->search_entry) {
+        const char* q = gtk_editable_get_text(GTK_EDITABLE(rw->search_entry));
+        if (q) f.query = q;
+    }
+
+    if (rw->source_dd) {
+        switch (gtk_drop_down_get_selected(GTK_DROP_DOWN(rw->source_dd))) {
+            case 1: f.source = resource::Source::CurseForge; break;
+            case 2: f.source = resource::Source::Modrinth;   break;
+            default: f.source = resource::Source::All;       break;
+        }
+    }
+
+    if (rw->version_dd) {
+        guint idx = gtk_drop_down_get_selected(GTK_DROP_DOWN(rw->version_dd));
+        if (idx > 0) {  // 0 = "全部版本"
+            GListModel* model = gtk_drop_down_get_model(GTK_DROP_DOWN(rw->version_dd));
+            if (model && GTK_IS_STRING_LIST(model)) {
+                const char* v = gtk_string_list_get_string(GTK_STRING_LIST(model), idx);
+                if (v) f.version = v;
+            }
+        }
+    }
+
+    if (rw->sort_dd) {
+        switch (gtk_drop_down_get_selected(GTK_DROP_DOWN(rw->sort_dd))) {
+            case 1: f.sort = resource::SortType::Relevance; break;
+            case 2: f.sort = resource::SortType::Downloads; break;
+            case 3: f.sort = resource::SortType::Follows;   break;
+            case 4: f.sort = resource::SortType::Newest;    break;
+            case 5: f.sort = resource::SortType::Updated;   break;
+            default: f.sort = resource::SortType::Default;  break;
+        }
+    }
+
+    if (rw->loader_dd) {
+        switch (gtk_drop_down_get_selected(GTK_DROP_DOWN(rw->loader_dd))) {
+            case 1: f.loader = resource::CompLoaderType::Forge;      break;
+            case 2: f.loader = resource::CompLoaderType::Fabric;     break;
+            case 3: f.loader = resource::CompLoaderType::Quilt;      break;
+            case 4: f.loader = resource::CompLoaderType::NeoForge;   break;
+            case 5: f.loader = resource::CompLoaderType::LiteLoader; break;
+            default: f.loader = resource::CompLoaderType::Any;       break;
+        }
+    }
+
+    return f;
+}
+
+/* ============================================================================
+ *  辅助: 将下载到的图标字节应用到结果列表第 index 行的 logo 控件
+ *  (do_resource_search / do_page_nav 的图标回调共用)
+ * ============================================================================ */
+static void apply_icon_to_row(GtkListBox* list, int index,
+                              const std::vector<uint8_t>& data)
+{
+    if (data.empty()) return;
+
+    /* 定位第 index 个 GtkListBoxRow → 取其 child (真正的 row) */
+    GtkWidget* list_row = gtk_widget_get_first_child(GTK_WIDGET(list));
+    for (int i = 0; list_row && i < index; i++)
+        list_row = gtk_widget_get_next_sibling(list_row);
+    if (!list_row) return;
+
+    GtkWidget* row = gtk_widget_get_first_child(list_row);
+    if (!row) return;
+
+    GtkWidget* logo = static_cast<GtkWidget*>(
+        g_object_get_data(G_OBJECT(row), "logo"));
+    if (!logo) return;
+
+    GBytes* gb = g_bytes_new(data.data(), data.size());
+    GdkTexture* tex = gdk_texture_new_from_bytes(gb, nullptr);
+    if (tex) {
+        if (GTK_IS_PICTURE(logo)) {
+            gtk_picture_set_paintable(GTK_PICTURE(logo), GDK_PAINTABLE(tex));
+        } else {
+            /* fallback logo 是 GtkImage — 整个替换 */
+            GtkWidget* new_logo = gtk_image_new_from_paintable(GDK_PAINTABLE(tex));
+            gtk_image_set_pixel_size(GTK_IMAGE(new_logo), 50);
+            gtk_widget_set_valign(new_logo, GTK_ALIGN_CENTER);
+            gtk_widget_set_halign(new_logo, GTK_ALIGN_CENTER);
+            gtk_widget_set_size_request(new_logo, 50, 50);
+            gtk_widget_set_hexpand(new_logo, FALSE);
+            gtk_widget_set_vexpand(new_logo, FALSE);
+            gtk_widget_add_css_class(new_logo, "resource-logo");
+            GtkWidget* parent = gtk_widget_get_parent(logo);
+            if (parent) {
+                gtk_box_remove(GTK_BOX(parent), logo);
+                gtk_widget_insert_after(new_logo, parent, nullptr);
+            }
+            g_object_set_data(G_OBJECT(row), "logo", new_logo);
+        }
+        g_object_unref(tex);
+    }
+    g_bytes_unref(gb);
+}
+
+/* ============================================================================
+ *  辅助: 用搜索结果填充结果列表 + 启动异步图标加载
+ *  (do_resource_search / do_page_nav 共用)。@gen 用于丢弃过期的图标回调。
+ * ============================================================================ */
+static void populate_results(ResourceWidgets* rw, unsigned gen,
+                             const resource::SearchResult& result)
+{
+    const char* icon_name = project_type_icon(rw->project_type);
+    for (auto& hit : result.hits) {
+        const char* src_str = (hit.source == resource::Source::Modrinth)
+            ? "Modrinth" : "CurseForge";
+
+        std::string dls  = resource::format_download_count(hit.download_count);
+        std::string date = resource::format_date(hit.date_modified.c_str());
+
+        ResourceItemData data;
+        data.title          = hit.title;
+        data.description    = hit.description;
+        data.source         = src_str;
+        data.version_range  = hit.version_range;
+        data.date_modified  = hit.date_modified;
+        data.icon_url       = hit.icon_url;
+        data.download_count = hit.download_count;
+        data.project_id     = hit.project_id;
+        data.author         = hit.author;
+        data.license_name   = hit.license_name;
+        data.project_url    = hit.project_url;
+        data.wiki_url       = hit.wiki_url;
+        data.source_url     = hit.source_url;
+        data.categories     = hit.categories;
+        data.game_versions  = hit.game_versions;
+        data.followers      = hit.followers;
+
+        std::vector<const char*> tag_ptrs;
+        tag_ptrs.reserve(hit.categories.size());
+        for (auto& c : hit.categories)
+            tag_ptrs.push_back(c.c_str());
+
+        GtkWidget* item = build_resource_item(
+            icon_name,
+            hit.title.c_str(),
+            hit.description.c_str(),
+            hit.version_range.c_str(),
+            dls.c_str(),
+            date.c_str(),
+            src_str,
+            &data,
+            nullptr,        // subtitle: author 现内联在标题行
+            tag_ptrs);
+        gtk_list_box_append(GTK_LIST_BOX(rw->result_list), item);
+    }
+
+    gtk_widget_set_visible(rw->empty_card, FALSE);
+    gtk_widget_set_visible(gtk_widget_get_parent(rw->result_list), TRUE);
+
+    /* 异步加载图标: 收集 URL, 后台下载, 逐个替换 fallback 图标 */
+    std::vector<std::string> icon_urls;
+    icon_urls.reserve(result.hits.size());
+    int url_count = 0;
+    for (auto& h : result.hits) {
+        icon_urls.push_back(h.icon_url);
+        if (!h.icon_url.empty()) url_count++;
+    }
+    LOG_INFO("MainWindow: loading %d icons (%zu hits total)",
+             url_count, result.hits.size());
+
+    resource::load_icons_async(std::move(icon_urls),
+        [rw, gen](int index, std::vector<uint8_t> data) {
+            if (gen != rw->search_generation) return;  // 过期搜索的图标, 丢弃
+            apply_icon_to_row(GTK_LIST_BOX(rw->result_list), index, data);
+        });
+}
+
+/* ============================================================================
+ *  辅助: 搜索框 + chevron + 历史记录 Revealer (build_resource_search /
+ *  build_favorites_page 共用)。控件追加到 @card; 点击历史项时仅当
+ *  rw->history_triggers_search 为真才触发搜索。
+ * ============================================================================ */
+static void build_search_box_with_history(GtkWidget* card, ResourceWidgets* rw)
+{
+    GtkWidget* srow = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 4);
+    gtk_widget_set_hexpand(srow, TRUE);
+    gtk_widget_set_halign(srow, GTK_ALIGN_FILL);
+
+    /* 搜索框 — 占满宽度 */
+    GtkWidget* search = build_search_box();
+    gtk_widget_set_hexpand(search, TRUE);
+    gtk_box_append(GTK_BOX(srow), search);
+
+    /* Extract GtkEntry, hide unused clear button (chevron replaces it) */
+    {
+        GtkWidget* child = gtk_widget_get_first_child(search);   // icon
+        if (child) {
+            child = gtk_widget_get_next_sibling(child);           // entry
+            if (child && GTK_IS_EDITABLE(child))
+                rw->search_entry = child;
+            GtkWidget* clear = gtk_widget_get_next_sibling(child); // clear btn
+            if (clear) gtk_widget_set_visible(clear, FALSE);
+        }
+    }
+
+    /* Chevron 按钮 — 展开/折叠历史记录 */
+    GtkWidget* chev_btn = gtk_button_new();
+    gtk_button_set_has_frame(GTK_BUTTON(chev_btn), FALSE);
+    gtk_widget_add_css_class(chev_btn, "version-action-btn");
+    GtkWidget* chev_icon = icon::load("chevron-down", 16);
+    gtk_button_set_child(GTK_BUTTON(chev_btn), chev_icon);
+    gtk_box_append(GTK_BOX(srow), chev_btn);
+
+    gtk_box_append(GTK_BOX(card), srow);
+
+    /* 历史记录 Revealer — 在搜索框下方 */
+    rw->hist_revealer = gtk_revealer_new();
+    gtk_revealer_set_transition_duration(GTK_REVEALER(rw->hist_revealer), 150);
+    {
+        GtkWidget* hlist = gtk_list_box_new();
+        gtk_list_box_set_selection_mode(GTK_LIST_BOX(hlist), GTK_SELECTION_NONE);
+        gtk_widget_add_css_class(hlist, "boxed-list");
+        gtk_revealer_set_child(GTK_REVEALER(rw->hist_revealer), hlist);
+        rw->hist_list = hlist;
+    }
+    gtk_box_append(GTK_BOX(card), rw->hist_revealer);
+
+    /* Chevron 点击 → 切换 revealer + 刷新历史列表 */
+    g_signal_connect(chev_btn, "clicked",
+        (GCallback)(+[](GtkWidget* btn, gpointer data) {
+            auto* r = static_cast<ResourceWidgets*>(data);
+            gboolean vis = gtk_revealer_get_reveal_child(
+                GTK_REVEALER(r->hist_revealer));
+            gtk_revealer_set_reveal_child(GTK_REVEALER(r->hist_revealer), !vis);
+
+            /* 更新图标方向 */
+            GtkWidget* old = gtk_button_get_child(GTK_BUTTON(btn));
+            GtkWidget* icn = icon::load(vis ? "chevron-down" : "chevron-up", 16);
+            if (old) gtk_box_remove(GTK_BOX(gtk_widget_get_parent(old)), old);
+            gtk_button_set_child(GTK_BUTTON(btn), icn);
+
+            /* 展开时刷新历史列表 */
+            if (!vis) {
+                GtkWidget* ch;
+                while ((ch = gtk_widget_get_first_child(r->hist_list)))
+                    gtk_list_box_remove(GTK_LIST_BOX(r->hist_list), ch);
+                for (auto& h : r->search_history) {
+                    GtkWidget* hrow = gtk_button_new();
+                    gtk_button_set_has_frame(GTK_BUTTON(hrow), FALSE);
+                    gtk_widget_add_css_class(hrow, "flat");
+                    GtkWidget* hlbl = gtk_label_new(h.c_str());
+                    gtk_label_set_xalign(GTK_LABEL(hlbl), 0.0f);
+                    gtk_button_set_child(GTK_BUTTON(hrow), hlbl);
+                    gtk_widget_set_margin_start(hrow, 8);
+                    gtk_widget_set_margin_end(hrow, 8);
+
+                    /* 点击历史 → 填入搜索框 (并按需触发搜索)。
+                     * pair 随行控件销毁而释放 (GDestroyNotify), 不在点击时 delete,
+                     * 避免重复点击时 use-after-free。 */
+                    auto* user_pair =
+                        new std::pair<ResourceWidgets*, std::string>(r, h);
+                    g_signal_connect_data(hrow, "clicked",
+                        (GCallback)(+[](GtkButton*, gpointer d) {
+                            auto* pair = static_cast<
+                                std::pair<ResourceWidgets*, std::string>*>(d);
+                            gtk_editable_set_text(
+                                GTK_EDITABLE(pair->first->search_entry),
+                                pair->second.c_str());
+                            gtk_revealer_set_reveal_child(
+                                GTK_REVEALER(pair->first->hist_revealer), FALSE);
+                            if (pair->first->history_triggers_search)
+                                do_resource_search(pair->first);
+                        }), user_pair,
+                        (GClosureNotify)(+[](gpointer d, GClosure*) {
+                            delete static_cast<
+                                std::pair<ResourceWidgets*, std::string>*>(d);
+                        }), (GConnectFlags)0);
+
+                    gtk_list_box_append(GTK_LIST_BOX(r->hist_list), hrow);
+                }
+            }
+        }), rw);
+}
+
+/* ============================================================================
  * build_resource_search — Mod / 整合包 / 数据包 … 共用搜索页
  *   对标 PCL-CE PageSelectRight: 卡片内搜索框 + 筛选 + 空态提示 + 卡片列表区
  * ============================================================================ */
@@ -190,101 +485,8 @@ static GtkWidget* build_resource_search(const char* category_title,
         gtk_widget_add_css_class(card, "search-card");
         gtk_widget_set_halign(card, GTK_ALIGN_FILL);
 
-        /* 搜索框行: [搜索框] [chevron ▼] */
-        {
-            GtkWidget* srow = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 4);
-            gtk_widget_set_hexpand(srow, TRUE);
-            gtk_widget_set_halign(srow, GTK_ALIGN_FILL);
-
-            /* 搜索框 — 占满宽度 */
-            GtkWidget* search = build_search_box();
-            gtk_widget_set_hexpand(search, TRUE);
-            gtk_box_append(GTK_BOX(srow), search);
-
-            /* Extract GtkEntry, hide unused clear button (chevron replaces it) */
-            {
-                GtkWidget* child = gtk_widget_get_first_child(search);   // icon
-                if (child) {
-                    child = gtk_widget_get_next_sibling(child);           // entry
-                    if (child && GTK_IS_EDITABLE(child))
-                        rw->search_entry = child;
-                    GtkWidget* clear = gtk_widget_get_next_sibling(child); // clear btn
-                    if (clear) gtk_widget_set_visible(clear, FALSE);
-                }
-            }
-
-            /* Chevron 按钮 — 展开/折叠历史记录 */
-            GtkWidget* chev_btn = gtk_button_new();
-            gtk_button_set_has_frame(GTK_BUTTON(chev_btn), FALSE);
-            gtk_widget_add_css_class(chev_btn, "version-action-btn");
-            GtkWidget* chev_icon = icon::load("chevron-down", 16);
-            gtk_button_set_child(GTK_BUTTON(chev_btn), chev_icon);
-            gtk_box_append(GTK_BOX(srow), chev_btn);
-
-            gtk_box_append(GTK_BOX(card), srow);
-
-            /* 历史记录 Revealer — 在搜索框下方 */
-            rw->hist_revealer = gtk_revealer_new();
-            gtk_revealer_set_transition_duration(GTK_REVEALER(rw->hist_revealer), 150);
-            {
-                GtkWidget* hlist = gtk_list_box_new();
-                gtk_list_box_set_selection_mode(GTK_LIST_BOX(hlist), GTK_SELECTION_NONE);
-                gtk_widget_add_css_class(hlist, "boxed-list");
-                gtk_revealer_set_child(GTK_REVEALER(rw->hist_revealer), hlist);
-                rw->hist_list = hlist;
-            }
-            gtk_box_append(GTK_BOX(card), rw->hist_revealer);
-
-            /* Chevron 点击 → 切换 revealer + 刷新历史列表 */
-            g_signal_connect(chev_btn, "clicked",
-                (GCallback)(+[](GtkWidget* btn, gpointer data) {
-                    auto* r = static_cast<ResourceWidgets*>(data);
-                    gboolean vis = gtk_revealer_get_reveal_child(
-                        GTK_REVEALER(r->hist_revealer));
-                    gtk_revealer_set_reveal_child(
-                        GTK_REVEALER(r->hist_revealer), !vis);
-
-                    /* 更新图标方向 */
-                    GtkWidget* old = gtk_button_get_child(GTK_BUTTON(btn));
-                    GtkWidget* icn = icon::load(
-                        vis ? "chevron-down" : "chevron-up", 16);
-                    if (old) { gtk_box_remove(GTK_BOX(gtk_widget_get_parent(old)), old); }
-                    gtk_button_set_child(GTK_BUTTON(btn), icn);
-
-                    /* 展开时刷新历史列表 */
-                    if (!vis) {
-                        /* 清空 */
-                        GtkWidget* ch;
-                        while ((ch = gtk_widget_get_first_child(r->hist_list)))
-                            gtk_list_box_remove(GTK_LIST_BOX(r->hist_list), ch);
-                        /* 填充最近 8 条 */
-                        for (auto& h : r->search_history) {
-                            GtkWidget* hrow = gtk_button_new();
-                            gtk_button_set_has_frame(GTK_BUTTON(hrow), FALSE);
-                            gtk_widget_add_css_class(hrow, "flat");
-                            GtkWidget* hlbl = gtk_label_new(h.c_str());
-                            gtk_label_set_xalign(GTK_LABEL(hlbl), 0.0f);
-                            gtk_button_set_child(GTK_BUTTON(hrow), hlbl);
-                            gtk_widget_set_margin_start(hrow, 8);
-                            gtk_widget_set_margin_end(hrow, 8);
-
-                            /* 点击历史 → 填入搜索框并触发搜索 */
-                            std::string term = h;  // copy
-                            auto* user_pair = new std::pair(r, term);
-                            g_signal_connect(hrow, "clicked",
-                                (GCallback)(+[](GtkButton*, gpointer d) {
-                                    auto* pair = static_cast<std::pair<ResourceWidgets*, std::string>*>(d);
-                                    gtk_editable_set_text(GTK_EDITABLE(pair->first->search_entry), pair->second.c_str());
-                                    gtk_revealer_set_reveal_child(GTK_REVEALER(pair->first->hist_revealer), FALSE);
-                                    do_resource_search(pair->first);
-                                    delete pair;
-                                }), user_pair);
-
-                            gtk_list_box_append(GTK_LIST_BOX(r->hist_list), hrow);
-                        }
-                    }
-                }), rw);
-        }
+        /* 搜索框行 + chevron + 历史记录 Revealer */
+        build_search_box_with_history(card, rw);
 
         /* 下拉筛选行: [版本^] [来源^] [分类^] [加载器^] [排序^] — 自然宽度 */
         {
@@ -573,62 +775,9 @@ static void update_page_nav(ResourceWidgets* rw, int total_hits)
 static void do_page_nav(ResourceWidgets* rw, int new_page)
 {
     rw->current_page = new_page;
+    unsigned gen = ++rw->search_generation;
 
-    /* 读取搜索词 */
-    const char* query = rw->search_entry
-        ? gtk_editable_get_text(GTK_EDITABLE(rw->search_entry)) : "";
-
-    /* 来源 */
-    resource::Source source = resource::Source::All;
-    if (rw->source_dd) {
-        switch (gtk_drop_down_get_selected(GTK_DROP_DOWN(rw->source_dd))) {
-            case 1: source = resource::Source::CurseForge; break;
-            case 2: source = resource::Source::Modrinth;   break;
-            default: source = resource::Source::All;       break;
-        }
-    }
-
-    /* 版本 */
-    const char* version = "";
-    if (rw->version_dd) {
-        guint idx = gtk_drop_down_get_selected(GTK_DROP_DOWN(rw->version_dd));
-        if (idx > 0) {
-            GListModel* model = gtk_drop_down_get_model(
-                GTK_DROP_DOWN(rw->version_dd));
-            if (model && GTK_IS_STRING_LIST(model))
-                version = gtk_string_list_get_string(
-                    GTK_STRING_LIST(model), idx);
-        }
-    }
-
-    /* 排序 */
-    resource::SortType sort = resource::SortType::Default;
-    if (rw->sort_dd) {
-        guint sidx = gtk_drop_down_get_selected(GTK_DROP_DOWN(rw->sort_dd));
-        switch (sidx) {
-            case 1: sort = resource::SortType::Relevance; break;
-            case 2: sort = resource::SortType::Downloads; break;
-            case 3: sort = resource::SortType::Follows;   break;
-            case 4: sort = resource::SortType::Newest;    break;
-            case 5: sort = resource::SortType::Updated;   break;
-            default: break;
-        }
-    }
-
-    /* 加载器 */
-    resource::CompLoaderType loader = resource::CompLoaderType::Any;
-    if (rw->loader_dd) {
-        guint lidx = gtk_drop_down_get_selected(GTK_DROP_DOWN(rw->loader_dd));
-        switch (lidx) {
-            case 1: loader = resource::CompLoaderType::Forge;    break;
-            case 2: loader = resource::CompLoaderType::Fabric;   break;
-            case 3: loader = resource::CompLoaderType::Quilt;    break;
-            case 4: loader = resource::CompLoaderType::NeoForge; break;
-            case 5: loader = resource::CompLoaderType::LiteLoader; break;
-            default: break;
-        }
-    }
-
+    SearchFilters f = read_search_filters(rw);
     int offset = new_page * rw->page_size;
 
     LOG_INFO("MainWindow: page nav — page=%d offset=%d", new_page, offset);
@@ -644,15 +793,17 @@ static void do_page_nav(ResourceWidgets* rw, int new_page)
 
     /* 后台抓取 */
     resource::search_resources(
-        query ? query : "",
+        f.query,
         rw->project_type,
-        source,
-        version,
+        f.source,
+        f.version,
         offset,
         rw->page_size,
-        sort,
-        loader,
-        [rw](resource::SearchResult result) {
+        f.sort,
+        f.loader,
+        [rw, gen](resource::SearchResult result) {
+            if (gen != rw->search_generation) return;  // 过期翻页, 丢弃
+
             if (rw->spinner) {
                 gtk_spinner_stop(GTK_SPINNER(rw->spinner));
                 gtk_widget_set_visible(rw->spinner, FALSE);
@@ -667,120 +818,9 @@ static void do_page_nav(ResourceWidgets* rw, int new_page)
                 return;
             }
 
-            /* 更新翻页 footer */
+            /* 更新翻页 footer + 填充结果 (含异步图标) */
             update_page_nav(rw, static_cast<int>(result.total_hits));
-
-            /* 填充结果 */
-            const char* icon_name = project_type_icon(rw->project_type);
-            for (auto& hit : result.hits) {
-                const char* src_str =
-                    (hit.source == resource::Source::Modrinth)
-                    ? "Modrinth" : "CurseForge";
-
-                std::string dls = resource::format_download_count(
-                    hit.download_count);
-                std::string date = resource::format_date(
-                    hit.date_modified.c_str());
-
-                ResourceItemData data;
-                data.title          = hit.title;
-                data.description    = hit.description;
-                data.source         = src_str;
-                data.version_range  = hit.version_range;
-                data.date_modified  = hit.date_modified;
-                data.icon_url       = hit.icon_url;
-                data.download_count = hit.download_count;
-                data.project_id     = hit.project_id;
-                data.author         = hit.author;
-                data.license_name   = hit.license_name;
-                data.project_url    = hit.project_url;
-                data.wiki_url       = hit.wiki_url;
-                data.source_url     = hit.source_url;
-                data.categories     = hit.categories;
-                data.game_versions  = hit.game_versions;
-                data.followers      = hit.followers;
-
-                std::vector<const char*> tag_ptrs;
-                tag_ptrs.reserve(hit.categories.size());
-                for (auto& c : hit.categories)
-                    tag_ptrs.push_back(c.c_str());
-
-                const char* subtitle_ptr = nullptr;  // author now shown inline in title row
-
-                GtkWidget* item = build_resource_item(
-                    icon_name,
-                    hit.title.c_str(),
-                    hit.description.c_str(),
-                    hit.version_range.c_str(),
-                    dls.c_str(),
-                    date.c_str(),
-                    src_str,
-                    &data,
-                    subtitle_ptr,
-                    tag_ptrs);
-                gtk_list_box_append(GTK_LIST_BOX(rw->result_list), item);
-            }
-
-            gtk_widget_set_visible(rw->empty_card, FALSE);
-            gtk_widget_set_visible(
-                gtk_widget_get_parent(rw->result_list), TRUE);
-
-            /* 异步加载图标 */
-            std::vector<std::string> icon_urls;
-            icon_urls.reserve(result.hits.size());
-            int url_count = 0;
-            for (auto& h : result.hits) {
-                icon_urls.push_back(h.icon_url);
-                if (!h.icon_url.empty()) url_count++;
-            }
-            LOG_INFO("MainWindow: page %d — loading %d icons",
-                     rw->current_page, url_count);
-
-            GtkListBox* list = GTK_LIST_BOX(rw->result_list);
-            resource::load_icons_async(std::move(icon_urls),
-                [list](int index, std::vector<uint8_t> data) {
-                    GtkWidget* list_row = gtk_widget_get_first_child(
-                        GTK_WIDGET(list));
-                    for (int i = 0; list_row && i < index; i++)
-                        list_row = gtk_widget_get_next_sibling(list_row);
-                    if (!list_row) return;
-                    GtkWidget* row = gtk_widget_get_first_child(list_row);
-                    if (!row) return;
-                    GtkWidget* logo = static_cast<GtkWidget*>(
-                        g_object_get_data(G_OBJECT(row), "logo"));
-                    if (!logo) return;
-
-                    GBytes* gb = g_bytes_new(data.data(), data.size());
-                    GdkTexture* tex = gdk_texture_new_from_bytes(gb, nullptr);
-                    if (tex) {
-                        if (GTK_IS_PICTURE(logo)) {
-                            gtk_picture_set_paintable(
-                                GTK_PICTURE(logo), GDK_PAINTABLE(tex));
-                        } else {
-                            LOG_INFO("MainWindow: icon[%d] replacing GtkImage → GtkImage (%zu bytes)",
-                                     index, data.size());
-                            GtkWidget* new_logo = gtk_image_new_from_paintable(
-                                GDK_PAINTABLE(tex));
-                            gtk_image_set_pixel_size(GTK_IMAGE(new_logo), 50);
-                            gtk_widget_set_valign(new_logo, GTK_ALIGN_CENTER);
-                            gtk_widget_set_halign(new_logo, GTK_ALIGN_CENTER);
-                            gtk_widget_set_size_request(new_logo, 50, 50);
-                            gtk_widget_set_hexpand(new_logo, FALSE);
-                            gtk_widget_set_vexpand(new_logo, FALSE);
-                            gtk_widget_add_css_class(new_logo, "resource-logo");
-                            GtkWidget* parent = gtk_widget_get_parent(logo);
-                            if (parent) {
-                                gtk_box_remove(GTK_BOX(parent), logo);
-                                gtk_widget_insert_after(new_logo, parent, nullptr);
-                            }
-                            g_object_set_data(G_OBJECT(row), "logo", new_logo);
-                            LOG_INFO("MainWindow: page_nav icon[%d] loaded (%zub)",
-                                     index, data.size());
-                        }
-                        g_object_unref(tex);
-                    }
-                    g_bytes_unref(gb);
-                });
+            populate_results(rw, gen, result);
         });
 }
 
@@ -788,64 +828,15 @@ void do_resource_search(ResourceWidgets* rw)
 {
     rw->default_loaded = true;  // 标记已触发默认浏览
     rw->current_page = 0;       // 新搜索 → 回到第一页
+    unsigned gen = ++rw->search_generation;
 
-    /* 1. 读取搜索词 */
-    const char* query = rw->search_entry
-        ? gtk_editable_get_text(GTK_EDITABLE(rw->search_entry)) : "";
-
-    /* 2. 来源 */
-    resource::Source source = resource::Source::All;
-    if (rw->source_dd) {
-        switch (gtk_drop_down_get_selected(GTK_DROP_DOWN(rw->source_dd))) {
-            case 1: source = resource::Source::CurseForge; break;
-            case 2: source = resource::Source::Modrinth;   break;
-            default: source = resource::Source::All;       break;
-        }
-    }
-
-    /* 3. 版本 */
-    const char* version = "";
-    if (rw->version_dd) {
-        guint idx = gtk_drop_down_get_selected(GTK_DROP_DOWN(rw->version_dd));
-        if (idx > 0) {  // 0 = "全部版本"
-            GListModel* model = gtk_drop_down_get_model(GTK_DROP_DOWN(rw->version_dd));
-            if (model && GTK_IS_STRING_LIST(model))
-                version = gtk_string_list_get_string(GTK_STRING_LIST(model), idx);
-        }
-    }
-
-    /* 3b. 排序方式 */
-    resource::SortType sort = resource::SortType::Default;
-    if (rw->sort_dd) {
-        guint sidx = gtk_drop_down_get_selected(GTK_DROP_DOWN(rw->sort_dd));
-        switch (sidx) {
-            case 1: sort = resource::SortType::Relevance; break;
-            case 2: sort = resource::SortType::Downloads; break;
-            case 3: sort = resource::SortType::Follows;   break;
-            case 4: sort = resource::SortType::Newest;    break;
-            case 5: sort = resource::SortType::Updated;   break;
-            default: sort = resource::SortType::Default;  break;
-        }
-    }
-
-    /* 3c. 加载器 */
-    resource::CompLoaderType loader = resource::CompLoaderType::Any;
-    if (rw->loader_dd) {
-        guint lidx = gtk_drop_down_get_selected(GTK_DROP_DOWN(rw->loader_dd));
-        switch (lidx) {
-            case 1: loader = resource::CompLoaderType::Forge;    break;
-            case 2: loader = resource::CompLoaderType::Fabric;   break;
-            case 3: loader = resource::CompLoaderType::Quilt;    break;
-            case 4: loader = resource::CompLoaderType::NeoForge; break;
-            case 5: loader = resource::CompLoaderType::LiteLoader; break;
-            default: loader = resource::CompLoaderType::Any;     break;
-        }
-    }
+    SearchFilters f = read_search_filters(rw);
 
     LOG_INFO("MainWindow: resource search — query='%s', type=%d, source=%d, ver='%s'",
-             query, (int)rw->project_type, (int)source, version);
+             f.query.c_str(), (int)rw->project_type, (int)f.source,
+             f.version.c_str());
 
-    /* 4. 清空旧结果, 显示加载状态 */
+    /* 清空旧结果, 显示加载状态 */
     clear_result_list(rw->result_list);
     gtk_widget_set_visible(rw->empty_card, FALSE);
     gtk_widget_set_visible(gtk_widget_get_parent(rw->result_list), FALSE);
@@ -857,24 +848,26 @@ void do_resource_search(ResourceWidgets* rw)
     }
 
     /* 保存到搜索历史 (最多 8 条, 去重) */
-    if (query && *query) {
+    if (!f.query.empty()) {
         auto& h = rw->search_history;
-        h.erase(std::remove(h.begin(), h.end(), query), h.end());
-        h.insert(h.begin(), query);
+        h.erase(std::remove(h.begin(), h.end(), f.query), h.end());
+        h.insert(h.begin(), f.query);
         if (h.size() > 8) h.resize(8);
     }
 
-    /* 5. 启动后台抓取 */
+    /* 启动后台抓取 */
     resource::search_resources(
-        query ? query : "",
+        f.query,
         rw->project_type,
-        source,
-        version,
-        0,    // offset
-        20,   // limit
-        sort,
-        loader,
-        [rw](resource::SearchResult result) {
+        f.source,
+        f.version,
+        0,                 // offset — 新搜索从第一页开始
+        rw->page_size,
+        f.sort,
+        f.loader,
+        [rw, gen](resource::SearchResult result) {
+            if (gen != rw->search_generation) return;  // 过期搜索, 丢弃
+
             /* Hide centered spinner */
             if (rw->spinner) {
                 gtk_spinner_stop(GTK_SPINNER(rw->spinner));
@@ -901,135 +894,11 @@ void do_resource_search(ResourceWidgets* rw)
                 return;
             }
 
-            /* Populate result list */
-            const char* icon_name = project_type_icon(rw->project_type);
-            for (auto& hit : result.hits) {
-                const char* src_str = (hit.source == resource::Source::Modrinth)
-                    ? "Modrinth" : "CurseForge";
-
-                std::string dls = resource::format_download_count(hit.download_count);
-                std::string date = resource::format_date(hit.date_modified.c_str());
-
-                ResourceItemData data;
-                data.title          = hit.title;
-                data.description    = hit.description;
-                data.source         = src_str;
-                data.version_range  = hit.version_range;
-                data.date_modified  = hit.date_modified;
-                data.icon_url       = hit.icon_url;
-                data.download_count = hit.download_count;
-                data.project_id     = hit.project_id;
-                data.author         = hit.author;
-                data.license_name   = hit.license_name;
-                data.project_url    = hit.project_url;
-                data.wiki_url       = hit.wiki_url;
-                data.source_url     = hit.source_url;
-                data.categories     = hit.categories;
-                data.game_versions  = hit.game_versions;
-                data.followers      = hit.followers;
-
-                /* Build tags vector (const char*) */
-                std::vector<const char*> tag_ptrs;
-                tag_ptrs.reserve(hit.categories.size());
-                for (auto& c : hit.categories)
-                    tag_ptrs.push_back(c.c_str());
-
-                /* Subtitle: only for English name overrides, not author */
-                const char* subtitle_ptr = nullptr;
-
-                GtkWidget* item = build_resource_item(
-                    icon_name,
-                    hit.title.c_str(),
-                    hit.description.c_str(),
-                    hit.version_range.c_str(),
-                    dls.c_str(),
-                    date.c_str(),
-                    src_str,
-                    &data,
-                    subtitle_ptr,
-                    tag_ptrs);
-                gtk_list_box_append(GTK_LIST_BOX(rw->result_list), item);
-            }
-
-            gtk_widget_set_visible(rw->empty_card, FALSE);
-            gtk_widget_set_visible(gtk_widget_get_parent(rw->result_list), TRUE);
+            /* 更新翻页 footer + 填充结果 (含异步图标) */
+            update_page_nav(rw, static_cast<int>(result.total_hits));
+            populate_results(rw, gen, result);
             LOG_INFO("MainWindow: resource search — %lu results shown",
                      (unsigned long)result.hits.size());
-
-            /* 更新翻页 footer */
-            update_page_nav(rw, static_cast<int>(result.total_hits));
-
-            /* ★ 异步加载图标: 收集 URL, 后台下载, 逐个替换 fallback 图标 */
-            std::vector<std::string> icon_urls;
-            icon_urls.reserve(result.hits.size());
-            int url_count = 0;
-            for (auto& h : result.hits) {
-                icon_urls.push_back(h.icon_url);
-                if (!h.icon_url.empty()) url_count++;
-            }
-            LOG_INFO("MainWindow: loading %d icons (%zu hits total)",
-                     url_count, result.hits.size());
-            if (url_count > 0) {
-                for (auto& h : result.hits) {
-                    if (!h.icon_url.empty()) {
-                        LOG_DBG("MainWindow: sample icon URL: %s",
-                                h.icon_url.c_str());
-                        break;
-                    }
-                }
-            }
-
-            GtkListBox* list = GTK_LIST_BOX(rw->result_list);
-            resource::load_icons_async(std::move(icon_urls),
-                [list](int index, std::vector<uint8_t> data) {
-                    /* 找到第 index 个 GtkListBoxRow → 取其 child (真正的 row) */
-                    GtkWidget* list_row = gtk_widget_get_first_child(
-                        GTK_WIDGET(list));
-                    for (int i = 0; list_row && i < index; i++)
-                        list_row = gtk_widget_get_next_sibling(list_row);
-                    if (!list_row) return;
-
-                    GtkWidget* row = gtk_widget_get_first_child(list_row);
-                    if (!row) return;
-
-                    GtkWidget* logo = static_cast<GtkWidget*>(
-                        g_object_get_data(G_OBJECT(row), "logo"));
-                    if (!logo) return;
-
-                    /* 用 GdkTexture 替换图标 */
-                    GBytes* gb = g_bytes_new(data.data(), data.size());
-                    GdkTexture* tex = gdk_texture_new_from_bytes(gb, nullptr);
-                    if (tex) {
-                        if (GTK_IS_PICTURE(logo)) {
-                            gtk_picture_set_paintable(
-                                GTK_PICTURE(logo), GDK_PAINTABLE(tex));
-                        } else {
-                            /* fallback logo is a GtkImage — replace it */
-                            GtkWidget* new_logo = gtk_image_new_from_paintable(
-                                GDK_PAINTABLE(tex));
-                            gtk_image_set_pixel_size(GTK_IMAGE(new_logo), 50);
-                            gtk_widget_set_valign(new_logo, GTK_ALIGN_CENTER);
-                            gtk_widget_set_halign(new_logo, GTK_ALIGN_CENTER);
-                            gtk_widget_set_size_request(new_logo, 50, 50);
-                            gtk_widget_set_hexpand(new_logo, FALSE);
-                            gtk_widget_set_vexpand(new_logo, FALSE);
-                            gtk_widget_add_css_class(new_logo, "resource-logo");
-                            GtkWidget* parent = gtk_widget_get_parent(logo);
-                            if (parent) {
-                                gtk_box_remove(GTK_BOX(parent), logo);
-                                gtk_widget_insert_after(new_logo, parent, nullptr);
-                            }
-                            g_object_set_data(G_OBJECT(row), "logo", new_logo);
-                            LOG_INFO("MainWindow: search icon[%d] loaded (%zub)",
-                                     index, data.size());
-                        }
-                        g_object_unref(tex);
-                    } else {
-                        LOG_DBG("MainWindow: icon[%d] texture decode failed "
-                                "(%zu bytes)", index, data.size());
-                    }
-                    g_bytes_unref(gb);
-                });
         });
 }
 
@@ -1062,94 +931,9 @@ static GtkWidget* build_favorites_page()
         gtk_widget_add_css_class(card, "search-card");
         gtk_widget_set_halign(card, GTK_ALIGN_FILL);
 
-        /* 搜索框行: [搜索框] [chevron ▼] */
-        {
-            GtkWidget* srow = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 4);
-            gtk_widget_set_hexpand(srow, TRUE);
-            gtk_widget_set_halign(srow, GTK_ALIGN_FILL);
-
-            /* 搜索框 — 占满宽度 */
-            GtkWidget* search = build_search_box();
-            gtk_widget_set_hexpand(search, TRUE);
-            gtk_box_append(GTK_BOX(srow), search);
-
-            /* Extract GtkEntry, hide unused clear button */
-            {
-                GtkWidget* child = gtk_widget_get_first_child(search);
-                if (child) {
-                    child = gtk_widget_get_next_sibling(child);
-                    if (child && GTK_IS_EDITABLE(child))
-                        rw->search_entry = child;
-                    GtkWidget* clear = gtk_widget_get_next_sibling(child);
-                    if (clear) gtk_widget_set_visible(clear, FALSE);
-                }
-            }
-
-            /* Chevron 按钮 — 展开/折叠历史记录 */
-            GtkWidget* chev_btn = gtk_button_new();
-            gtk_button_set_has_frame(GTK_BUTTON(chev_btn), FALSE);
-            gtk_widget_add_css_class(chev_btn, "version-action-btn");
-            GtkWidget* chev_icon = icon::load("chevron-down", 16);
-            gtk_button_set_child(GTK_BUTTON(chev_btn), chev_icon);
-            gtk_box_append(GTK_BOX(srow), chev_btn);
-
-            gtk_box_append(GTK_BOX(card), srow);
-
-            /* 历史记录 Revealer */
-            rw->hist_revealer = gtk_revealer_new();
-            gtk_revealer_set_transition_duration(GTK_REVEALER(rw->hist_revealer), 150);
-            {
-                GtkWidget* hlist = gtk_list_box_new();
-                gtk_list_box_set_selection_mode(GTK_LIST_BOX(hlist), GTK_SELECTION_NONE);
-                gtk_widget_add_css_class(hlist, "boxed-list");
-                gtk_revealer_set_child(GTK_REVEALER(rw->hist_revealer), hlist);
-                rw->hist_list = hlist;
-            }
-            gtk_box_append(GTK_BOX(card), rw->hist_revealer);
-
-            /* Chevron 点击 → 切换 revealer + 刷新历史列表 */
-            g_signal_connect(chev_btn, "clicked",
-                (GCallback)(+[](GtkWidget* btn, gpointer data) {
-                    auto* r = static_cast<ResourceWidgets*>(data);
-                    gboolean vis = gtk_revealer_get_reveal_child(
-                        GTK_REVEALER(r->hist_revealer));
-                    gtk_revealer_set_reveal_child(
-                        GTK_REVEALER(r->hist_revealer), !vis);
-
-                    GtkWidget* old = gtk_button_get_child(GTK_BUTTON(btn));
-                    GtkWidget* icn = icon::load(
-                        vis ? "chevron-down" : "chevron-up", 16);
-                    if (old) { gtk_box_remove(GTK_BOX(gtk_widget_get_parent(old)), old); }
-                    gtk_button_set_child(GTK_BUTTON(btn), icn);
-
-                    /* 展开时刷新历史列表 */
-                    if (!vis) {
-                        GtkWidget* ch;
-                        while ((ch = gtk_widget_get_first_child(r->hist_list)))
-                            gtk_list_box_remove(GTK_LIST_BOX(r->hist_list), ch);
-                        for (auto& h : r->search_history) {
-                            GtkWidget* hrow = gtk_button_new();
-                            gtk_button_set_has_frame(GTK_BUTTON(hrow), FALSE);
-                            gtk_widget_add_css_class(hrow, "flat");
-                            GtkWidget* hlbl = gtk_label_new(h.c_str());
-                            gtk_label_set_xalign(GTK_LABEL(hlbl), 0.0f);
-                            gtk_button_set_child(GTK_BUTTON(hrow), hlbl);
-                            gtk_widget_set_margin_start(hrow, 8);
-                            gtk_widget_set_margin_end(hrow, 8);
-                            std::string term = h;
-                            auto* user_pair = new std::pair(r, term);
-                            g_signal_connect(hrow, "clicked",
-                                (GCallback)(+[](GtkButton*, gpointer d) {
-                                    auto* pair = static_cast<std::pair<ResourceWidgets*, std::string>*>(d);
-                                    gtk_editable_set_text(GTK_EDITABLE(pair->first->search_entry), pair->second.c_str());
-                                    gtk_revealer_set_reveal_child(GTK_REVEALER(pair->first->hist_revealer), FALSE);
-                                    delete pair;
-                                }), user_pair);
-                            gtk_list_box_append(GTK_LIST_BOX(r->hist_list), hrow);
-                        }
-                    }
-                }), rw);
-        }
+        /* 搜索框行 + chevron + 历史记录 Revealer (收藏页: 历史项不触发搜索) */
+        rw->history_triggers_search = false;
+        build_search_box_with_history(card, rw);
 
         /* 按钮行: [搜索] [重置条件] — 均分宽度 */
         {

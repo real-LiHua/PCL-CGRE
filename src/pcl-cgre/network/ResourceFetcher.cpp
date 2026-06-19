@@ -25,16 +25,21 @@ using json = nlohmann::json;
 namespace {
 
 /** Percent-encode a string using libcurl.
- *  Thread-safe — each call uses a fresh CURL handle for encoding. */
+ *  Reuses a thread-local CURL handle (one per worker thread, released at
+ *  thread exit) to avoid an easy_init/easy_cleanup pair on every URL
+ *  component we encode. */
 inline std::string url_encode(const std::string& s)
 {
     if (s.empty()) return s;
-    CURL* curl = curl_easy_init();
-    if (!curl) return s;
-    char* enc = curl_easy_escape(curl, s.c_str(), s.length());
+    struct EscHandle {
+        CURL* h = curl_easy_init();
+        ~EscHandle() { if (h) curl_easy_cleanup(h); }
+    };
+    static thread_local EscHandle esc;
+    if (!esc.h) return s;
+    char* enc = curl_easy_escape(esc.h, s.c_str(), static_cast<int>(s.length()));
     std::string result(enc ? enc : s);
-    curl_free(enc);
-    curl_easy_cleanup(curl);
+    if (enc) curl_free(enc);
     return result;
 }
 
@@ -601,20 +606,16 @@ std::string cache_path_for(const std::string& url)
     return std::string(CACHE_DIR) + "/" + hex + ".png";
 }
 
-/* ── Ensure cache directory exists (idempotent, thread-safe via mutex) ── */
-std::mutex g_cache_mutex;
-bool g_cache_dir_ready = false;
-
+/* ── Ensure cache directory exists (idempotent, thread-safe via call_once) ── */
 void ensure_cache_dir()
 {
-    if (g_cache_dir_ready) return;
-    std::lock_guard<std::mutex> lock(g_cache_mutex);
-    if (g_cache_dir_ready) return;
-    std::error_code ec;
-    std::filesystem::create_directories(CACHE_DIR, ec);
-    if (!ec)
-        LOG_DBG("ResourceFetcher: cache dir %s ready", CACHE_DIR);
-    g_cache_dir_ready = true;
+    static std::once_flag dir_flag;
+    std::call_once(dir_flag, []() {
+        std::error_code ec;
+        std::filesystem::create_directories(CACHE_DIR, ec);
+        if (!ec)
+            LOG_DBG("ResourceFetcher: cache dir %s ready", CACHE_DIR);
+    });
 }
 
 /* ── Shared state for worker threads ────────────────────────────────── */
@@ -629,8 +630,10 @@ struct IconWork {
     std::atomic<int>                          failed{0};
 };
 
-/* ── Download one icon (with cache), dispatch to main thread ────────── */
-void fetch_and_dispatch(IconWork* w, int i)
+/* ── Download one icon (with cache), dispatch to main thread.
+ *    `curl` is a per-worker handle reused across icons for HTTP keep-alive
+ *    (its static options are configured once in icon_worker). ────────── */
+void fetch_and_dispatch(IconWork* w, int i, CURL* curl)
 {
     const std::string& url = (*w->urls)[i];
     if (url.empty()) return;
@@ -638,100 +641,115 @@ void fetch_and_dispatch(IconWork* w, int i)
     std::vector<uint8_t> data;
     std::string cache_path = cache_path_for(url);
 
-    /* 1. Try cache */
+    /* 1. Try cache — paths are unique per URL hash, so concurrent reads of
+     *    distinct files need no shared lock; the atomic-rename writes below
+     *    guarantee a reader never observes a torn file. */
     {
-        std::lock_guard<std::mutex> lock(g_cache_mutex);
-        if (std::filesystem::exists(cache_path)) {
-            std::ifstream ifs(cache_path, std::ios::binary);
-            if (ifs) {
-                data.assign(std::istreambuf_iterator<char>(ifs),
-                            std::istreambuf_iterator<char>());
-                if (data.size() > ICON_MAX_BYTES)
-                    data.clear();
-            }
+        std::ifstream ifs(cache_path, std::ios::binary);
+        if (ifs) {
+            data.assign(std::istreambuf_iterator<char>(ifs),
+                        std::istreambuf_iterator<char>());
+            if (data.size() > ICON_MAX_BYTES)
+                data.clear();
         }
     }
 
     /* 2. Download if not cached */
-    if (data.empty()) {
-        CURL* curl = curl_easy_init();
-        if (curl) {
-            curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-            curl_easy_setopt(curl, CURLOPT_TIMEOUT, (long)REQUEST_TIMEOUT_S);
-            curl_easy_setopt(curl, CURLOPT_USERAGENT, "PCL-CGRE/0.1");
-            curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
-            curl_easy_setopt(curl, CURLOPT_MAXREDIRS, 5L);
+    if (data.empty() && curl) {
+        curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
 
-            /* Write callback for binary data (named function, not lambda —
-             * curl_easy_setopt uses C variadic and lambdas don't decay to
-             * function pointers there). */
-            curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, icon_write_cb);
+        struct curl_slist* headers = nullptr;
+        if (w->api_key &&
+            url.find("curseforge.com") != std::string::npos) {
+            std::string hdr = std::string("x-api-key: ") + w->api_key;
+            headers = curl_slist_append(headers, hdr.c_str());
+        }
+        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
 
-            struct curl_slist* headers = nullptr;
-            if (w->api_key &&
-                url.find("curseforge.com") != std::string::npos) {
-                std::string hdr = std::string("x-api-key: ") + w->api_key;
-                headers = curl_slist_append(headers, hdr.c_str());
-                curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+        std::vector<uint8_t> raw;
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &raw);
+
+        CURLcode res = curl_easy_perform(curl);
+
+        /* Detach + free the per-request header list before the next reuse. */
+        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, nullptr);
+        if (headers)
+            curl_slist_free_all(headers);
+
+        if (res == CURLE_OK && !raw.empty() && raw.size() < ICON_MAX_BYTES) {
+            data = std::move(raw);
+            w->loaded.fetch_add(1);
+            LOG_DBG("ResourceFetcher: icon[%d] OK — %zu bytes", i, data.size());
+
+            /* Save to cache: write a per-(batch,index) temp file then
+             * atomically rename, so parallel workers never produce a torn
+             * .png and no global write lock is needed. */
+            ensure_cache_dir();
+            std::string tmp = cache_path + ".tmp." +
+                std::to_string(reinterpret_cast<uintptr_t>(w)) + "." +
+                std::to_string(i);
+            std::ofstream ofs(tmp, std::ios::binary);
+            if (ofs) {
+                ofs.write(reinterpret_cast<const char*>(data.data()),
+                          static_cast<std::streamsize>(data.size()));
+                ofs.close();
+                std::error_code ec;
+                std::filesystem::rename(tmp, cache_path, ec);
+                if (ec) std::filesystem::remove(tmp, ec);
             }
-
-            std::vector<uint8_t> raw;
-            curl_easy_setopt(curl, CURLOPT_WRITEDATA, &raw);
-
-            CURLcode res = curl_easy_perform(curl);
-            if (res == CURLE_OK && !raw.empty() && raw.size() < ICON_MAX_BYTES) {
-                data = std::move(raw);
-                w->loaded.fetch_add(1);
-                LOG_DBG("ResourceFetcher: icon[%d] OK — %zu bytes", i, data.size());
-
-                /* Save to cache */
-                std::lock_guard<std::mutex> lock(g_cache_mutex);
-                ensure_cache_dir();
-                std::ofstream ofs(cache_path, std::ios::binary);
-                if (ofs)
-                    ofs.write(reinterpret_cast<const char*>(data.data()), data.size());
-            } else if (res != CURLE_OK) {
-                LOG_INFO("ResourceFetcher: icon[%d] HTTP error: %s",
-                         i, curl_easy_strerror(res));
-                w->failed.fetch_add(1);
-            } else {
-                w->failed.fetch_add(1);
-            }
-
-            if (headers)
-                curl_slist_free_all(headers);
-            curl_easy_cleanup(curl);
+        } else if (res != CURLE_OK) {
+            LOG_INFO("ResourceFetcher: icon[%d] HTTP error: %s",
+                     i, curl_easy_strerror(res));
+            w->failed.fetch_add(1);
         } else {
             w->failed.fetch_add(1);
         }
-    } else {
+    } else if (!data.empty()) {
         w->loaded.fetch_add(1);
         LOG_DBG("ResourceFetcher: icon[%d] cache hit — %zu bytes",
                 i, data.size());
+    } else {
+        /* no cache hit and no usable handle */
+        w->failed.fetch_add(1);
     }
 
     /* 3. Dispatch to main thread via dispatcher */
     if (!data.empty()) {
         auto cb_copy = w->on_icon;
-        auto data_copy = std::move(data);
         pclcore::network::get_dispatcher().dispatch(
-            [cb_copy, data_copy = std::move(data_copy), i]() mutable {
-                cb_copy(i, std::move(data_copy));
+            [cb_copy, data = std::move(data), i]() mutable {
+                cb_copy(i, std::move(data));
             });
     }
 }
 
-/* ── Worker thread: grab indices, fetch, repeat ─────────────────────── */
+/* ── Worker thread: one reused CURL handle, grab indices, fetch, repeat ─ */
 void icon_worker(IconWork* w)
 {
     int n = static_cast<int>(w->urls->size());
+
+    /* One handle per worker, reused across every icon this worker pulls so
+     * keep-alive holds to the (few) icon CDN hosts. Released at the end. */
+    CURL* curl = curl_easy_init();
+    if (curl) {
+        curl_easy_setopt(curl, CURLOPT_TIMEOUT, (long)REQUEST_TIMEOUT_S);
+        curl_easy_setopt(curl, CURLOPT_USERAGENT, "PCL-CGRE/0.1");
+        curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+        curl_easy_setopt(curl, CURLOPT_MAXREDIRS, 5L);
+        /* Write callback for binary data (named function, not lambda —
+         * curl_easy_setopt uses C variadic and lambdas don't decay to
+         * function pointers there). */
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, icon_write_cb);
+    }
 
     for (;;) {
         if (std::chrono::steady_clock::now() > w->deadline) break;
         int i = w->next_index.fetch_add(1);
         if (i >= n) break;
-        fetch_and_dispatch(w, i);
+        fetch_and_dispatch(w, i, curl);
     }
+
+    if (curl) curl_easy_cleanup(curl);
 }
 
 }  // anonymous namespace

@@ -28,16 +28,19 @@ inline size_t write_callback(char* ptr, size_t size, size_t nmemb, void* userdat
     return size * nmemb;
 }
 
-/** Thread-local CURL handle — created once per worker thread and reused
- *  for all subsequent HTTP requests on that thread.  This lets libcurl
- *  keep TCP connections alive (HTTP/1.1 keep-alive) across requests.
+/** Thread-local CURL handle — created lazily per worker thread and reused
+ *  for all HTTP requests issued on that thread, so libcurl can keep TCP
+ *  connections alive (HTTP/1.1 keep-alive) within a single fetch worker
+ *  (e.g. McVersionFetcher tries two source URLs; ResourceFetcher queries
+ *  Modrinth + CurseForge back to back).
  *
- *  The handle is leaked on thread exit, which is acceptable because
- *  worker threads are long-lived (they handle a single fetch-and-die
- *  pattern in McVersionFetcher / ResourceFetcher).
+ *  The handle is owned by a thread_local object whose destructor runs at
+ *  thread exit, so curl_easy_cleanup() is always called even for the
+ *  short-lived, detached fetch threads — no handle, socket or
+ *  connection-cache leak accumulates over the lifetime of the process.
  *
- *  curl_global_init() is called exactly once before the first handle
- *  is created — it is thread-safe per libcurl documentation. */
+ *  curl_global_init() is called exactly once before the first handle is
+ *  created — it is thread-safe per libcurl documentation. */
 inline CURL* tl_handle()
 {
     static std::once_flag init_flag;
@@ -45,18 +48,25 @@ inline CURL* tl_handle()
         curl_global_init(CURL_GLOBAL_DEFAULT);
     });
 
-    static thread_local CURL* handle = []() -> CURL* {
-        CURL* h = curl_easy_init();
-        if (h) {
-            curl_easy_setopt(h, CURLOPT_TIMEOUT, (long)HTTP_SYNC_TIMEOUT_S);
-            curl_easy_setopt(h, CURLOPT_USERAGENT, "PCL-CGRE/0.1");
-            curl_easy_setopt(h, CURLOPT_FOLLOWLOCATION, 1L);
-            curl_easy_setopt(h, CURLOPT_MAXREDIRS, 5L);
-            curl_easy_setopt(h, CURLOPT_WRITEFUNCTION, write_callback);
+    /* RAII owner: ~Handle() fires on thread exit and releases the handle
+     * (and its pooled connections / file descriptors). */
+    struct Handle {
+        CURL* h = nullptr;
+        ~Handle() { if (h) curl_easy_cleanup(h); }
+    };
+    static thread_local Handle owner;
+
+    if (!owner.h) {
+        owner.h = curl_easy_init();
+        if (owner.h) {
+            curl_easy_setopt(owner.h, CURLOPT_TIMEOUT, (long)HTTP_SYNC_TIMEOUT_S);
+            curl_easy_setopt(owner.h, CURLOPT_USERAGENT, "PCL-CGRE/0.1");
+            curl_easy_setopt(owner.h, CURLOPT_FOLLOWLOCATION, 1L);
+            curl_easy_setopt(owner.h, CURLOPT_MAXREDIRS, 5L);
+            curl_easy_setopt(owner.h, CURLOPT_WRITEFUNCTION, write_callback);
         }
-        return h;
-    }();
-    return handle;
+    }
+    return owner.h;
 }
 
 }  // anonymous namespace
@@ -121,6 +131,9 @@ inline std::string http_get_sync(const char* url, const char* api_key)
                  url, curl_easy_strerror(res));
     }
 
+    /* Detach the per-request header list from the reused handle before
+     * freeing it, so the next request on this thread starts clean. */
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, nullptr);
     if (headers)
         curl_slist_free_all(headers);
 

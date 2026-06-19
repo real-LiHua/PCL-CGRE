@@ -282,15 +282,4 @@ std::string format_download_count(uint64_t count);
 /** Extract YYYY-MM-DD from an ISO 8601 date string. */
 std::string format_date(const char* iso8601);
 
-/** Callback for lazy icon loading: (index, raw image bytes). */
-using IconCallback = std::function<void(int index, std::vector<uint8_t> data)>;
-
-/** Spawn a background thread to download icon images.
- *  @param urls    Icon URLs to fetch (empty strings are skipped).
- *  @param on_icon Called on the GTK main thread for each successfully
- *                 downloaded icon.  `index` matches the position in `urls`,
- *                 `data` is the raw image bytes (PNG / JPEG).
- */
-void load_icons_async(std::vector<std::string> urls, IconCallback on_icon);
-
 }  // namespace pcl::resource
