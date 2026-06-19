@@ -20,8 +20,8 @@ jobs:
 
       - name: build
         run: |
-          cmake -B build -DCMAKE_BUILD_TYPE=Release .
-          cmake --build build --parallel $(nproc)
+          ./scripts/build.sh
+          ./scripts/build.sh debug
 
       - name: upload release
         uses: actions/upload-artifact@v7
