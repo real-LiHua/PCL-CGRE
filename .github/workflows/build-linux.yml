@@ -21,7 +21,7 @@ jobs:
              cmake --build build --parallel $(nproc) \&&
 
       - name: upload release
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v7
         with:
           name: PCL-CGRE
           path: |
