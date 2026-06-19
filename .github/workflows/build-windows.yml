@@ -32,7 +32,11 @@ jobs:
 
       - name: build
         run: |
-          cmake -B build -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release .
+          cmake -B build -G "MinGW Makefiles" \
+            -DCMAKE_MAKE_PROGRAM=mingw32-make \
+            -DCMAKE_C_COMPILER=gcc \
+            -DCMAKE_CXX_COMPILER=g++ \
+            -DCMAKE_BUILD_TYPE=Release .
           cmake --build build --parallel $(nproc)
 
       - name: upload release
