@@ -1,0 +1,13 @@
+/home/admin/Devel/PCL-GTK/build/CMakeFiles/edit_cache.dir
+/home/admin/Devel/PCL-GTK/build/CMakeFiles/rebuild_cache.dir
+/home/admin/Devel/PCL-GTK/build/libpclcore/CMakeFiles/pclcore_objs.dir
+/home/admin/Devel/PCL-GTK/build/libpclcore/CMakeFiles/edit_cache.dir
+/home/admin/Devel/PCL-GTK/build/libpclcore/CMakeFiles/rebuild_cache.dir
+/home/admin/Devel/PCL-GTK/build/src/pcl-cgre/CMakeFiles/blueprint_ui.dir
+/home/admin/Devel/PCL-GTK/build/src/pcl-cgre/CMakeFiles/gresource.dir
+/home/admin/Devel/PCL-GTK/build/src/pcl-cgre/CMakeFiles/pcl-cgre.dir
+/home/admin/Devel/PCL-GTK/build/src/pcl-cgre/CMakeFiles/edit_cache.dir
+/home/admin/Devel/PCL-GTK/build/src/pcl-cgre/CMakeFiles/rebuild_cache.dir
+/home/admin/Devel/PCL-GTK/build/src/cli/CMakeFiles/cli_objs.dir
+/home/admin/Devel/PCL-GTK/build/src/cli/CMakeFiles/edit_cache.dir
+/home/admin/Devel/PCL-GTK/build/src/cli/CMakeFiles/rebuild_cache.dir

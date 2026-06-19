@@ -1,0 +1,34 @@
+using Gtk 4.0;
+
+Gtk.Box tools_page {
+  orientation: vertical;
+
+  Gtk.Box card {
+    css-classes: ["card"];
+    orientation: vertical;
+
+    Gtk.Label {
+      label: "实用工具";
+      css-classes: ["card-title"];
+      halign: start;
+      margin-start: 20;
+      margin-end: 20;
+      margin-top: 16;
+    }
+
+    Gtk.Box tools_inner {
+      margin-start: 25;
+      margin-end: 21;
+      margin-top: 20;
+      margin-bottom: 5;
+      orientation: vertical;
+
+      Gtk.FlowBox tool_flow {
+        min-children-per-line: 1;
+        max-children-per-line: 4;
+        selection-mode: none;
+        margin-bottom: 10;
+      }
+    }
+  }
+}

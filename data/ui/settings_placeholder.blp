@@ -1,0 +1,39 @@
+using Gtk 4.0;
+
+Gtk.ScrolledWindow settings_subpage {
+  Gtk.Box content {
+    margin-start: 25;
+    margin-end: 25;
+    margin-top: 10;
+    margin-bottom: 25;
+    orientation: vertical;
+
+    Gtk.Box card {
+      css-classes: ["card"];
+      orientation: vertical;
+
+      Gtk.Label card_title {
+        css-classes: ["card-title"];
+        halign: start;
+        margin-start: 20;
+        margin-end: 20;
+        margin-top: 16;
+      }
+
+      Gtk.Box card_inner {
+        margin-start: 20;
+        margin-end: 20;
+        margin-top: 20;
+        margin-bottom: 20;
+        halign: center;
+        valign: center;
+        orientation: vertical;
+
+        Gtk.Label {
+          label: "此设置页待实现。";
+          opacity: 0.45;
+        }
+      }
+    }
+  }
+}

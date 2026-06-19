@@ -1,0 +1,85 @@
+using Gtk 4.0;
+using Adw 1;
+
+Gtk.Box launch_sidebar {
+  css-classes: ["sidebar"];
+  orientation: vertical;
+  width-request: 300;
+  hexpand: false;
+  valign: fill;
+
+  Gtk.Box mode_bar {
+    css-classes: ["mode-bar"];
+    halign: center;
+    spacing: 4;
+
+    Gtk.Button mode_btn_0 {
+      label: "正版";
+      has-frame: false;
+      css-classes: ["flat", "mode-btn", "mode-btn-active"];
+    }
+    Gtk.Button mode_btn_1 {
+      label: "离线";
+      has-frame: false;
+      css-classes: ["flat", "mode-btn"];
+    }
+    Gtk.Button mode_btn_2 {
+      label: "第三方";
+      has-frame: false;
+      css-classes: ["flat", "mode-btn"];
+    }
+  }
+
+  Gtk.Box top_spacer {
+    vexpand: true;
+  }
+
+  Gtk.Box avatar_box {
+    css-classes: ["avatar-box"];
+    halign: center;
+
+    Adw.Avatar sidebar_avatar {
+      size: 64;
+      show-initials: true;
+      text: "PCL";
+      halign: center;
+    }
+  }
+
+  Gtk.Label username_label {
+    label: "Steve";
+    css-classes: ["username"];
+    halign: center;
+    margin-top: 12;
+  }
+
+  Gtk.Box bottom_spacer {
+    vexpand: true;
+  }
+
+  Gtk.Box launch_placeholder {
+    css-classes: ["launch-placeholder"];
+    halign: fill;
+    margin-start: 20;
+    margin-end: 20;
+    margin-bottom: 8;
+    height-request: 54;
+  }
+
+  Gtk.Box version_row {
+    css-classes: ["version-row"];
+    halign: fill;
+    margin-start: 20;
+    margin-end: 20;
+    spacing: 8;
+
+    Gtk.Button version_select_btn {
+      label: "版本选择";
+      hexpand: true;
+    }
+    Gtk.Button version_settings_btn {
+      label: "版本设置";
+      hexpand: true;
+    }
+  }
+}

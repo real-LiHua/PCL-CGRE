@@ -1,0 +1,498 @@
+/* PCL-CGRE Base Stylesheet */
+
+/* ── 字体 ── */
+.pcl-app * {
+  font-family: 'HarmonyOS Sans SC', 'HarmonyOS Sans', system-ui, sans-serif;
+}
+
+/* ── Header bar ── */
+headerbar {
+  background-color: @accent_color;
+  min-height: 48px;
+}
+headerbar label,
+headerbar image,
+headerbar button:not(.suggested-action):not(.destructive-action) {
+  color: white;
+}
+headerbar button.window-ctrl-btn {
+  all: unset;
+  min-width: 30px; min-height: 30px; padding: 4px;
+  border-radius: 50%;
+  color: white;
+  background-color: transparent;
+  transition: background-color 120ms ease-out;
+}
+headerbar button.window-ctrl-btn:hover {
+  background-color: rgba(255,255,255,0.15);
+}
+headerbar button.window-ctrl-close:hover {
+  background-color: #c42b1c;
+}
+
+/* ── Header tabs ── */
+headerbar button.header-tab {
+  all: unset;
+  color: white;
+  background-color: transparent;
+  border-radius: 9999px;
+  min-height: 27px;
+  padding: 2px 12px;
+  font-size: 10.5pt;
+  transition: background-color 150ms ease-out;
+}
+headerbar button.header-tab:hover {
+  background-color: rgba(255,255,255,0.12);
+}
+headerbar button.header-tab-active {
+  color: @accent_color;
+  background-color: white;
+  font-weight: 600;
+}
+
+/* ── Buttons ── */
+.pcl-app button:not(.suggested-action):not(.destructive-action):not(.toggle):not(.flat):not(.fab):not(.extra-button) {
+  border: 1px solid @text_color;
+  border-radius: 3px;
+  background-color: @btn_bg;
+  color: @text_color;
+  font-size: 10pt;
+  padding: 6px 16px;
+}
+button:not(.suggested-action):not(.destructive-action):not(.toggle):not(.flat):not(.fab):not(.extra-button):hover {
+  border-color: @accent_color;
+  background-color: @hover_bg;
+  color: @accent_color;
+}
+.pcl-app button.suggested-action {
+  border: 1px solid @accent_color;
+  border-radius: 3px;
+  background-color: @accent_color;
+  color: white;
+  font-weight: 600;
+}
+.pcl-app button.destructive-action {
+  border: 1px solid @red_dark;
+  border-radius: 3px;
+  background-color: @red_dark;
+  color: white;
+  font-weight: 600;
+}
+
+/* ── FAB ── */
+.fab {
+  border-radius: 9999px;
+  min-width: 48px;
+  min-height: 48px;
+  padding: 0;
+}
+.fab-blue {
+  background-color: @accent_color;
+  color: white;
+  box-shadow: 0 4px 14px rgba(19,112,243,0.45);
+}
+
+/* ── Extra Button ── */
+.extra-button {
+  border-radius: 9999px;
+  min-width: 40px;
+  min-height: 40px;
+  padding: 8px;
+  background-color: @accent_color;
+  color: white;
+}
+
+/* ── Sidebar ── */
+.sidebar {
+  background-color: @sidebar_bg;
+  min-width: 300px;
+  padding: 24px;
+}
+.sidebar .username {
+  font-size: 14pt;
+  font-weight: 600;
+  color: @text_color;
+}
+
+/* ── Mode bar ── */
+.mode-btn {
+  border-radius: 9999px;
+  padding: 3px 14px;
+  font-size: 10pt;
+  min-height: 24px;
+  color: @gray_4;
+  background-color: transparent;
+  transition: background-color 150ms ease-out, color 150ms ease-out;
+}
+.mode-btn:hover {
+  color: @accent_color;
+  background-color: @accent_bg_light;
+}
+.mode-btn-active {
+  color: white;
+  font-weight: 600;
+  background-color: @accent_color;
+}
+
+/* ── Nav ── */
+.nav-item {
+  border-radius: 6px;
+  color: @text_color;
+  font-size: 10pt;
+}
+.nav-item:hover {
+  background-color: @accent_bg_light;
+}
+.nav-item-active {
+  background-color: @accent_bg_light;
+  font-weight: 600;
+}
+
+/* ── Content area ── */
+.content-area {
+  background-color: @panel_bg;
+}
+
+/* ── Background transparency ── */
+.pcl-app stack {
+  background-color: transparent;
+}
+.pcl-app toolbarview {
+  background-color: transparent;
+}
+
+/* ── News panel ── */
+.news-scroll {
+  background-color: @panel_bg;
+}
+.news-panel {
+  background-color: @panel_bg;
+  padding: 24px;
+}
+.news-panel .section-title {
+  font-size: 14pt;
+  font-weight: 600;
+  margin-bottom: 16px;
+  color: @text_color;
+}
+
+/* ── Card ── */
+.card {
+  background-color: alpha(@accent_bg_color, 0.04);
+  border-radius: 5px;
+  border: 1px solid alpha(@borders, 0.15);
+  padding: 10px;
+}
+.card .card-title {
+  font-size: 11pt;
+  font-weight: 600;
+  color: @text_color;
+  margin-bottom: 8px;
+}
+
+/* ── Hint bar ── */
+.hint-bar {
+  border-left: 3px solid #99FF4444;
+  border-radius: 2px;
+  background-color: alpha(@accent_bg_color, 0.04);
+  padding: 9px 12px;
+  font-size: 10pt;
+  color: @text_color;
+}
+
+/* ── Download page filter dropdowns ── */
+.dl-filter-dropdown {
+  padding: 4px 8px;
+  border-radius: 6px;
+  background-color: alpha(@accent_bg_color, 0.06);
+  border: 1px solid alpha(@borders, 0.12);
+  font-size: 9.5pt;
+  min-height: 28px;
+}
+.dl-filter-dropdown:hover {
+  background-color: alpha(@accent_bg_color, 0.1);
+}
+.dl-filter-dropdown > button {
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+/* ── Search card ── */
+.search-card {
+  padding: 12px 16px;
+}
+.search-card > box > box { /* filter row */
+  margin-top: 4px;
+}
+
+/* ── Search box ── */
+.search-box {
+  background-color: @btn_bg;
+  border: 1px solid @accent_bg_light;
+  border-radius: 3px;
+  min-height: 24px;
+  padding: 2px 6px;
+}
+.search-box entry {
+  background-color: transparent;
+  border: none;
+  font-size: 10pt;
+  color: @text_color;
+}
+
+/* ── Version popover ── */
+.version-popover {
+  padding: 0;
+}
+.version-list {
+  background-color: transparent;
+}
+.version-list row:hover {
+  background-color: @accent_bg_light;
+}
+.version-item-name {
+  font-size: 10pt;
+  font-weight: 600;
+  color: @text_color;
+}
+.version-item-path {
+  font-size: 8pt;
+  color: @text_color;
+}
+
+/* ── Entry ── */
+.pcl-app entry {
+  border: 1px solid @accent_bg_light;
+  border-radius: 3px;
+  background-color: @btn_bg;
+  color: @text_color;
+  font-size: 10pt;
+  padding: 6px 10px;
+}
+.pcl-app entry:focus {
+  border-color: @accent_color;
+}
+
+/* ── Scrollbar ── */
+.pcl-app scrollbar slider {
+  min-width: 6px;
+  min-height: 30px;
+  margin: 3px;
+  border-radius: 9999px;
+  background-color: @accent_bg_light;
+}
+
+/* ── Tooltip ── */
+.pcl-app tooltip {
+  border: 1px solid @text_color;
+  border-radius: 4px;
+  background-color: @tooltip_bg;
+  color: @text_color;
+  font-size: 9pt;
+  padding: 5px 7px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+/* ── Row ── */
+.pcl-app row {
+  min-height: 36px;
+  font-size: 10pt;
+  color: @text_color;
+}
+
+/* ── Progressbar ── */
+.pcl-app progressbar trough {
+  border-radius: 2px;
+  min-height: 4px;
+  background-color: @accent_bg_light;
+}
+.pcl-app progressbar progress {
+  border-radius: 2px;
+  background: linear-gradient(to right, #4890f5, @accent_color);
+}
+
+/* ── Version tabs ── */
+.version-tab {
+  background: transparent;
+  border: 1px solid @accent_bg_light;
+  border-radius: 9999px;
+  padding: 2px 10px;
+  font-size: 9pt;
+  color: @accent_color;
+}
+.version-tab:hover {
+  border-color: @accent_color;
+}
+.version-tab-active {
+  color: white;
+  background-color: @accent_color;
+  border-color: @accent_color;
+  font-weight: 600;
+}
+
+/* ── Resource tags ── */
+.resource-tag {
+  background-color: @accent_bg_light;
+  color: @text_color;
+  border-radius: 3px;
+  padding: 0 4px;
+  font-size: 8pt;
+}
+.resource-item {
+  min-height: 64px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+}
+.resource-item:hover {
+  border-color: @accent_bg_light;
+}
+.resource-logo {
+  border-radius: 6px;
+  background-color: @accent_bg_light;
+}
+
+/* ── Notification ── */
+.notif-backdrop {
+  background-color: rgba(0,0,0,0.25);
+}
+.notif-panel {
+  background-color: @bg_main;
+  border-right: 1px solid @accent_bg_light;
+  box-shadow: 4px 0 20px rgba(0,0,0,0.12);
+}
+.notif-header {
+  padding: 14px 16px;
+  min-height: 48px;
+}
+.notif-title {
+  font-size: 13pt;
+  font-weight: 600;
+  color: @text_color;
+}
+.notif-list {
+  background-color: transparent;
+}
+.notif-item {
+  padding: 10px 12px;
+}
+.notif-info  { color: @accent_color; }
+.notif-warn  { color: #f39c12; }
+.notif-error { color: #e74c3c; }
+.notif-fatal { color: #c23616; }
+.notif-bg-info  { background-color: rgba(76,175,80,0.07); }
+.notif-bg-warn  { background-color: rgba(33,150,243,0.07); }
+.notif-bg-error { background-color: rgba(244,67,54,0.07); }
+.notif-bg-fatal { background-color: rgba(244,67,54,0.11); }
+
+/* ── Toast ── */
+.toast-box {
+  background-color: @bg_main;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+}
+
+/* ── Pill button ── */
+.pill-button {
+  border-radius: 9999px;
+  padding: 12px 28px;
+  font-weight: 600;
+}
+
+/* ── Version row ── */
+.version-row {
+  margin-top: 0;
+}
+.version-row button {
+  border-radius: 3px;
+  padding: 8px 0;
+  font-size: 10pt;
+}
+
+/* ── Setting panels ── */
+.nav-sidebar {
+  background-color: @sidebar_bg;
+  min-width: 160px;
+  padding: 8px;
+}
+.settings-mid {
+  background-color: @panel_bg;
+  padding: 8px 0;
+}
+.settings-right {
+  background-color: @panel_bg;
+  padding: 16px;
+}
+.settings-category-header {
+  font-size: 12px;
+  opacity: 0.6;
+  color: @text_color;
+  margin: 13px 5px 5px 3px;
+}
+
+/* ── Misc ── */
+.ack-avatar {
+  border-radius: 9999px;
+  background-color: @accent_bg_light;
+  min-width: 34px;
+  min-height: 34px;
+}
+.dm-scroll viewport { background-color: @panel_bg; }
+.dm-scroll list { background-color: transparent; }
+.dm-scroll list row { background-color: transparent; }
+.dm-check check { min-width: 14px; min-height: 14px; }
+.dm-progress { margin: 0; padding: 0; }
+.dm-progress trough { min-height: 2px; border-radius: 0; border: none; background-color: #e8e8e8; }
+.dm-progress progress { min-height: 2px; border-radius: 0; background-color: @accent_color; }
+.placeholder { padding: 48px; }
+.placeholder .ph-title { font-size: 24pt; font-weight: 300; opacity: 0.55; color: @text_color; }
+.loader-ver-row { border-radius: 5px; }
+.loader-ver-row:hover { background-color: @accent_bg_light; }
+.loader-ver-row-selected { background-color: @accent_bg_light; box-shadow: inset 0 0 0 1px @accent_color; }
+.nav-refresh-btn { opacity: 0; transition: opacity 120ms ease-out; }
+.nav-item:hover .nav-refresh-btn { opacity: 1; }
+
+/* ── Background layer ── */
+.main-bg-layer {
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+/* ── Resource Detail Page ── */
+.detail-left {
+  background-color: @panel_bg;
+  border-radius: 8px;
+  padding: 20px 16px;
+}
+.detail-right {
+  background-color: alpha(@panel_bg, 0.55);
+  border-radius: 8px;
+  padding: 16px 20px;
+}
+.detail-icon {
+  border-radius: 12px;
+  min-width: 96px;
+  min-height: 96px;
+}
+.detail-name {
+  opacity: 1;
+}
+.detail-name:hover {
+  opacity: 0.78;
+}
+.detail-loading {
+  padding: 48px 24px;
+}
+
+/* ── CrashSpy 中栏浮动删除按钮 ── */
+.crash-dismiss-btn {
+  background: alpha(@accent_bg_color, 0.12);
+  border-radius: 12px;
+  min-width: 24px;
+  min-height: 24px;
+  padding: 2px;
+}
+.crash-dismiss-btn:hover {
+  background: @error_color;
+  color: white;
+}

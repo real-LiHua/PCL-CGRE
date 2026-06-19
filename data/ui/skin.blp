@@ -1,0 +1,46 @@
+using Gtk 4.0;
+
+Gtk.Box skin_page {
+  orientation: vertical;
+
+  Gtk.Box card {
+    css-classes: ["card"];
+    orientation: vertical;
+
+    Gtk.Label {
+      label: "皮肤";
+      css-classes: ["card-title"];
+      halign: start;
+      margin-start: 20;
+      margin-end: 20;
+      margin-top: 16;
+    }
+
+    Gtk.Box skin_inner {
+      margin-start: 25;
+      margin-end: 25;
+      margin-top: 20;
+      margin-bottom: 15;
+      orientation: vertical;
+
+      Gtk.Box {
+        spacing: 12;
+
+        Gtk.Label {
+          label: "玩家名";
+          valign: center;
+        }
+
+        Gtk.Entry skin_entry {
+          placeholder-text: "Steve";
+          hexpand: true;
+        }
+
+        Gtk.Button {
+          label: "保存";
+          css-classes: ["suggested-action"];
+        }
+      }
+    }
+  }
+}

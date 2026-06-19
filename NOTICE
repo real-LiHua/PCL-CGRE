@@ -1,0 +1,9 @@
+PCL-CGRE — Plain Craft Launcher (PCL) GTK Rewrite Edition
+
+本项目是基于 Plain Craft Launcher (PCL) 的第三方独立二次创作。
+
+原始 PCL 作者：龙腾猫跃
+上游项目：https://github.com/Hex-Dragon/PCL2
+
+项目内引用的 Lucide 图标采用 ISC License，HarmonyOS Sans 字体采用
+SIL Open Font License 1.1，版权归各自所有者。

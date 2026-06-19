@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gresources>
+  <gresource prefix="/pcl/cgre">
+
+    <!-- Icons (pcl-cgre theme SVGs) -->
+    <file alias="icons/scalable/actions/pcl-anvil.svg">resources/icons/pcl-cgre/scalable/actions/pcl-anvil.svg</file>
+    <file alias="icons/scalable/actions/pcl-arrow-left.svg">resources/icons/pcl-cgre/scalable/actions/pcl-arrow-left.svg</file>
+    <file alias="icons/scalable/actions/pcl-arrow-left-light.svg">resources/icons/pcl-cgre/scalable/actions/pcl-arrow-left-light.svg</file>
+    <file alias="icons/scalable/actions/pcl-arrow-right.svg">resources/icons/pcl-cgre/scalable/actions/pcl-arrow-right.svg</file>
+    <file alias="icons/scalable/actions/pcl-arrow-right-left.svg">resources/icons/pcl-cgre/scalable/actions/pcl-arrow-right-left.svg</file>
+    <file alias="icons/scalable/actions/pcl-arrow-up-down.svg">resources/icons/pcl-cgre/scalable/actions/pcl-arrow-up-down.svg</file>
+    <file alias="icons/scalable/actions/pcl-arrow-up-from-line.svg">resources/icons/pcl-cgre/scalable/actions/pcl-arrow-up-from-line.svg</file>
+    <file alias="icons/scalable/actions/pcl-arrow-up-to-line.svg">resources/icons/pcl-cgre/scalable/actions/pcl-arrow-up-to-line.svg</file>
+    <file alias="icons/scalable/actions/pcl-arrow-up-to-line-light.svg">resources/icons/pcl-cgre/scalable/actions/pcl-arrow-up-to-line-light.svg</file>
+    <file alias="icons/scalable/actions/pcl-book-marked.svg">resources/icons/pcl-cgre/scalable/actions/pcl-book-marked.svg</file>
+    <file alias="icons/scalable/actions/pcl-box.svg">resources/icons/pcl-cgre/scalable/actions/pcl-box.svg</file>
+    <file alias="icons/scalable/actions/pcl-boxes.svg">resources/icons/pcl-cgre/scalable/actions/pcl-boxes.svg</file>
+    <file alias="icons/scalable/actions/pcl-bubbles.svg">resources/icons/pcl-cgre/scalable/actions/pcl-bubbles.svg</file>
+    <file alias="icons/scalable/actions/pcl-cat.svg">resources/icons/pcl-cgre/scalable/actions/pcl-cat.svg</file>
+    <file alias="icons/scalable/actions/pcl-chevron-down.svg">resources/icons/pcl-cgre/scalable/actions/pcl-chevron-down.svg</file>
+    <file alias="icons/scalable/actions/pcl-chevron-left.svg">resources/icons/pcl-cgre/scalable/actions/pcl-chevron-left.svg</file>
+    <file alias="icons/scalable/actions/pcl-chevron-right.svg">resources/icons/pcl-cgre/scalable/actions/pcl-chevron-right.svg</file>
+    <file alias="icons/scalable/actions/pcl-chevrons-left.svg">resources/icons/pcl-cgre/scalable/actions/pcl-chevrons-left.svg</file>
+    <file alias="icons/scalable/actions/pcl-chevron-up.svg">resources/icons/pcl-cgre/scalable/actions/pcl-chevron-up.svg</file>
+    <file alias="icons/scalable/actions/pcl-circle-check.svg">resources/icons/pcl-cgre/scalable/actions/pcl-circle-check.svg</file>
+    <file alias="icons/scalable/actions/pcl-circle-help.svg">resources/icons/pcl-cgre/scalable/actions/pcl-circle-help.svg</file>
+    <file alias="icons/scalable/actions/pcl-circle-minus.svg">resources/icons/pcl-cgre/scalable/actions/pcl-circle-minus.svg</file>
+    <file alias="icons/scalable/actions/pcl-circle-plus.svg">resources/icons/pcl-cgre/scalable/actions/pcl-circle-plus.svg</file>
+    <file alias="icons/scalable/actions/pcl-coffee.svg">resources/icons/pcl-cgre/scalable/actions/pcl-coffee.svg</file>
+    <file alias="icons/scalable/actions/pcl-contact.svg">resources/icons/pcl-cgre/scalable/actions/pcl-contact.svg</file>
+    <file alias="icons/scalable/actions/pcl-copy.svg">resources/icons/pcl-cgre/scalable/actions/pcl-copy.svg</file>
+    <file alias="icons/scalable/actions/pcl-download.svg">resources/icons/pcl-cgre/scalable/actions/pcl-download.svg</file>
+    <file alias="icons/scalable/actions/pcl-download-light.svg">resources/icons/pcl-cgre/scalable/actions/pcl-download-light.svg</file>
+    <file alias="icons/scalable/actions/pcl-ellipsis-vertical.svg">resources/icons/pcl-cgre/scalable/actions/pcl-ellipsis-vertical.svg</file>
+    <file alias="icons/scalable/actions/pcl-ellipsis-vertical-light.svg">resources/icons/pcl-cgre/scalable/actions/pcl-ellipsis-vertical-light.svg</file>
+    <file alias="icons/scalable/actions/pcl-earth.svg">resources/icons/pcl-cgre/scalable/actions/pcl-earth.svg</file>
+    <file alias="icons/scalable/actions/pcl-external-link.svg">resources/icons/pcl-cgre/scalable/actions/pcl-external-link.svg</file>
+    <file alias="icons/scalable/actions/pcl-file-archive.svg">resources/icons/pcl-cgre/scalable/actions/pcl-file-archive.svg</file>
+    <file alias="icons/scalable/actions/pcl-file-text.svg">resources/icons/pcl-cgre/scalable/actions/pcl-file-text.svg</file>
+    <file alias="icons/scalable/actions/pcl-folder.svg">resources/icons/pcl-cgre/scalable/actions/pcl-folder.svg</file>
+    <file alias="icons/scalable/actions/pcl-flag.svg">resources/icons/pcl-cgre/scalable/actions/pcl-flag.svg</file>
+    <file alias="icons/scalable/actions/pcl-flag-light.svg">resources/icons/pcl-cgre/scalable/actions/pcl-flag-light.svg</file>
+    <file alias="icons/scalable/actions/pcl-gamepad.svg">resources/icons/pcl-cgre/scalable/actions/pcl-gamepad.svg</file>
+    <file alias="icons/scalable/actions/pcl-glasses.svg">resources/icons/pcl-cgre/scalable/actions/pcl-glasses.svg</file>
+    <file alias="icons/scalable/actions/pcl-info.svg">resources/icons/pcl-cgre/scalable/actions/pcl-info.svg</file>
+    <file alias="icons/scalable/actions/pcl-layers.svg">resources/icons/pcl-cgre/scalable/actions/pcl-layers.svg</file>
+    <file alias="icons/scalable/actions/pcl-link-2.svg">resources/icons/pcl-cgre/scalable/actions/pcl-link-2.svg</file>
+    <file alias="icons/scalable/actions/pcl-message-circle.svg">resources/icons/pcl-cgre/scalable/actions/pcl-message-circle.svg</file>
+    <file alias="icons/scalable/actions/pcl-minus.svg">resources/icons/pcl-cgre/scalable/actions/pcl-minus.svg</file>
+    <file alias="icons/scalable/actions/pcl-minus-light.svg">resources/icons/pcl-cgre/scalable/actions/pcl-minus-light.svg</file>
+    <file alias="icons/scalable/actions/pcl-monitor-cog.svg">resources/icons/pcl-cgre/scalable/actions/pcl-monitor-cog.svg</file>
+    <file alias="icons/scalable/actions/pcl-music.svg">resources/icons/pcl-cgre/scalable/actions/pcl-music.svg</file>
+    <file alias="icons/scalable/actions/pcl-music-light.svg">resources/icons/pcl-cgre/scalable/actions/pcl-music-light.svg</file>
+    <file alias="icons/scalable/actions/pcl-package.svg">resources/icons/pcl-cgre/scalable/actions/pcl-package.svg</file>
+    <file alias="icons/scalable/actions/pcl-palette.svg">resources/icons/pcl-cgre/scalable/actions/pcl-palette.svg</file>
+    <file alias="icons/scalable/actions/pcl-play.svg">resources/icons/pcl-cgre/scalable/actions/pcl-play.svg</file>
+    <file alias="icons/scalable/actions/pcl-play-light.svg">resources/icons/pcl-cgre/scalable/actions/pcl-play-light.svg</file>
+    <file alias="icons/scalable/actions/pcl-power.svg">resources/icons/pcl-cgre/scalable/actions/pcl-power.svg</file>
+    <file alias="icons/scalable/actions/pcl-power-light.svg">resources/icons/pcl-cgre/scalable/actions/pcl-power-light.svg</file>
+    <file alias="icons/scalable/actions/pcl-puzzle.svg">resources/icons/pcl-cgre/scalable/actions/pcl-puzzle.svg</file>
+    <file alias="icons/scalable/actions/pcl-refresh-cw.svg">resources/icons/pcl-cgre/scalable/actions/pcl-refresh-cw.svg</file>
+    <file alias="icons/scalable/actions/pcl-refresh-cw-light.svg">resources/icons/pcl-cgre/scalable/actions/pcl-refresh-cw-light.svg</file>
+    <file alias="icons/scalable/actions/pcl-rocket.svg">resources/icons/pcl-cgre/scalable/actions/pcl-rocket.svg</file>
+    <file alias="icons/scalable/actions/pcl-rocket-light.svg">resources/icons/pcl-cgre/scalable/actions/pcl-rocket-light.svg</file>
+    <file alias="icons/scalable/actions/pcl-scroll-text.svg">resources/icons/pcl-cgre/scalable/actions/pcl-scroll-text.svg</file>
+    <file alias="icons/scalable/actions/pcl-scroll-text-light.svg">resources/icons/pcl-cgre/scalable/actions/pcl-scroll-text-light.svg</file>
+    <file alias="icons/scalable/actions/pcl-search.svg">resources/icons/pcl-cgre/scalable/actions/pcl-search.svg</file>
+    <file alias="icons/scalable/actions/pcl-settings.svg">resources/icons/pcl-cgre/scalable/actions/pcl-settings.svg</file>
+    <file alias="icons/scalable/actions/pcl-sparkles.svg">resources/icons/pcl-cgre/scalable/actions/pcl-sparkles.svg</file>
+    <file alias="icons/scalable/actions/pcl-tool-case.svg">resources/icons/pcl-cgre/scalable/actions/pcl-tool-case.svg</file>
+    <file alias="icons/scalable/actions/pcl-trash-2.svg">resources/icons/pcl-cgre/scalable/actions/pcl-trash-2.svg</file>
+    <file alias="icons/scalable/actions/pcl-wrench.svg">resources/icons/pcl-cgre/scalable/actions/pcl-wrench.svg</file>
+    <file alias="icons/scalable/actions/pcl-wrench-light.svg">resources/icons/pcl-cgre/scalable/actions/pcl-wrench-light.svg</file>
+    <file alias="icons/scalable/actions/pcl-x.svg">resources/icons/pcl-cgre/scalable/actions/pcl-x.svg</file>
+    <file alias="icons/scalable/actions/pcl-x-light.svg">resources/icons/pcl-cgre/scalable/actions/pcl-x-light.svg</file>
+
+    <!-- Blocks (PNG images for mod loaders / version types) -->
+    <file alias="blocks/Anvil.png">resources/blocks/Anvil.png</file>
+    <file alias="blocks/Cleanroom.png">resources/blocks/Cleanroom.png</file>
+    <file alias="blocks/Command.png">resources/blocks/Command.png</file>
+    <file alias="blocks/Egg.png">resources/blocks/Egg.png</file>
+    <file alias="blocks/Fabric.png">resources/blocks/Fabric.png</file>
+    <file alias="blocks/Minecraft.png">resources/blocks/Minecraft.png</file>
+    <file alias="blocks/Minecraft-Alpha.png">resources/blocks/Minecraft-Alpha.png</file>
+    <file alias="blocks/Minecraft-AprilFool.png">resources/blocks/Minecraft-AprilFool.png</file>
+    <file alias="blocks/Minecraft-Beta.png">resources/blocks/Minecraft-Beta.png</file>
+    <file alias="blocks/NeoForge.png">resources/blocks/NeoForge.png</file>
+    <file alias="blocks/OptiFine.png">resources/blocks/OptiFine.png</file>
+    <file alias="blocks/Quilt.png">resources/blocks/Quilt.png</file>
+
+    <!-- Fonts -->
+    <file alias="fonts/HarmonyOS_Sans_Bold.ttf">resources/fonts/HarmonyOS_Sans_Bold.ttf</file>
+    <file alias="fonts/HarmonyOS_Sans_Light.ttf">resources/fonts/HarmonyOS_Sans_Light.ttf</file>
+    <file alias="fonts/HarmonyOS_Sans_Medium.ttf">resources/fonts/HarmonyOS_Sans_Medium.ttf</file>
+    <file alias="fonts/HarmonyOS_Sans_Regular.ttf">resources/fonts/HarmonyOS_Sans_Regular.ttf</file>
+    <file alias="fonts/HarmonyOS_Sans_Semibold.ttf">resources/fonts/HarmonyOS_Sans_Semibold.ttf</file>
+    <file alias="fonts/HarmonyOS_SansSC_Black.ttf">resources/fonts/HarmonyOS_SansSC_Black.ttf</file>
+    <file alias="fonts/HarmonyOS_SansSC_Bold.ttf">resources/fonts/HarmonyOS_SansSC_Bold.ttf</file>
+    <file alias="fonts/HarmonyOS_SansSC_Light.ttf">resources/fonts/HarmonyOS_SansSC_Light.ttf</file>
+    <file alias="fonts/HarmonyOS_SansSC_Medium.ttf">resources/fonts/HarmonyOS_SansSC_Medium.ttf</file>
+    <file alias="fonts/HarmonyOS_SansSC_Regular.ttf">resources/fonts/HarmonyOS_SansSC_Regular.ttf</file>
+    <file alias="fonts/HarmonyOS_SansSC_Semibold.ttf">resources/fonts/HarmonyOS_SansSC_Semibold.ttf</file>
+    <file alias="fonts/HarmonyOS_SansSC_Thin.ttf">resources/fonts/HarmonyOS_SansSC_Thin.ttf</file>
+
+    <!-- Heads (contributor avatars) -->
+    <file alias="heads/bangbang93.png">resources/Heads/bangbang93.png</file>
+    <file alias="heads/EasyTier.png">resources/Heads/EasyTier.png</file>
+    <file alias="heads/Emperormummy.png">resources/Heads/Emperormummy.png</file>
+    <file alias="heads/Logo.png">resources/Heads/Logo.png</file>
+    <file alias="heads/Logo-CE.png">resources/Heads/Logo-CE.png</file>
+    <file alias="heads/LTCat.jpg">resources/Heads/LTCat.jpg</file>
+    <file alias="heads/PCL-Community.png">resources/Heads/PCL-Community.png</file>
+    <file alias="heads/Pysio.jpg">resources/Heads/Pysio.jpg</file>
+    <file alias="heads/wiki.png">resources/Heads/wiki.png</file>
+    <file alias="heads/x-leehe.jpg">resources/Heads/x-leehe.jpg</file>
+    <file alias="heads/Yunmoan.jpg">resources/Heads/Yunmoan.jpg</file>
+    <file alias="heads/z0z0r4.png">resources/Heads/z0z0r4.png</file>
+
+    <!-- Blueprint UI (compiled .ui) -->
+    <file alias="data/ui/help_faq.ui">build/data/ui/help_faq.ui</file>
+    <file alias="data/ui/help_support.ui">build/data/ui/help_support.ui</file>
+    <file alias="data/ui/launch_right.ui">build/data/ui/launch_right.ui</file>
+    <file alias="data/ui/launch_sidebar.ui">build/data/ui/launch_sidebar.ui</file>
+    <file alias="data/ui/settings_placeholder.ui">build/data/ui/settings_placeholder.ui</file>
+    <file alias="data/ui/skin.ui">build/data/ui/skin.ui</file>
+    <file alias="data/ui/tools.ui">build/data/ui/tools.ui</file>
+
+    <!-- JSON data -->
+    <file alias="lirpa_loof.json">resources/lirpa_loof.json</file>
+
+  </gresource>
+</gresources>
