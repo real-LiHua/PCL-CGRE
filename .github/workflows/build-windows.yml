@@ -12,23 +12,14 @@ jobs:
       - name: checkout code
         uses: actions/checkout@v7
 
-      - name: setup MSYS2
-        uses: msys2/setup-msys2@v2
-        with:
-          msystem: UCRT64
-          update: true
-          install: >-
-            mingw-w64-ucrt-x86_64-gtk4
-            mingw-w64-ucrt-x86_64-libadwaita
-            mingw-w64-ucrt-x86_64-fontconfig
-            mingw-w64-ucrt-x86_64-libsoup3
-            mingw-w64-ucrt-x86_64-curl
-            mingw-w64-ucrt-x86_64-json-glib
-            mingw-w64-ucrt-x86_64-nlohmann-json
-            mingw-w64-ucrt-x86_64-gcc
-            mingw-w64-ucrt-x86_64-cmake
-            mingw-w64-ucrt-x86_64-make
-            mingw-w64-ucrt-x86_64-blueprint-compiler
+      - name: install dependencies
+        run: |
+        pacman -S mingw-w64-ucrt-x86_64-gtk4 mingw-w64-ucrt-x86_64-libadwaita \
+        mingw-w64-ucrt-x86_64-fontconfig mingw-w64-ucrt-x86_64-libsoup3 \
+        mingw-w64-ucrt-x86_64-libcurl mingw-w64-ucrt-x86_64-json-glib \
+        mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-cmake \
+        mingw-w64-ucrt-x86_64-make \
+        mingw-w64-ucrt-x86_64-nlohmann-json
 
       - name: build
         run: |
