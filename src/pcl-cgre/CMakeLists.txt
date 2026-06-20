@@ -129,10 +129,10 @@ set_target_properties(pcl-cgre PROPERTIES
 
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
     set_target_properties(pcl-cgre PROPERTIES
-        OUTPUT_NAME "pcl-cgre-release"
+        OUTPUT_NAME "pcl-cgre_release"
     )
 elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
     set_target_properties(pcl-cgre PROPERTIES
-        OUTPUT_NAME "pcl-cgre-debug"
+        OUTPUT_NAME "pcl-cgre_debug"
     )
 endif()
