@@ -16,6 +16,16 @@ elseif(CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
     add_compile_options(-O2 -g)
 endif()
 
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+    set_target_properties(pcl-cgre PROPERTIES
+        OUTPUT_NAME "pcl-cgre_release"
+    )
+elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set_target_properties(pcl-cgre PROPERTIES
+        OUTPUT_NAME "pcl-cgre_debug"
+    )
+endif()
+
 # ── Sub-projects ───────────────────────────────────────────────────────────
 add_subdirectory(libpclcore)
 add_subdirectory(src/pcl-cgre)
