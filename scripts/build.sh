@@ -5,11 +5,14 @@ set -euo pipefail
 BUILD_TYPE="${1:-Release}"
 JOBS="${2:-$(nproc)}"
 
-BUILD_DIR="build"
-OUTPUT_NAME="pcl-cgre"
-
 if [ "${BUILD_TYPE,,}" = "debug" ]; then
     BUILD_DIR="build-debug"
+    SRC_NAME="pcl-cgre_debug"
+    DST_NAME="pcl-cgre_debug"
+else
+    BUILD_DIR="build"
+    SRC_NAME="pcl-cgre_release"
+    DST_NAME="pcl-cgre"
 fi
 
 echo "==> 配置 (${BUILD_TYPE})..."
@@ -20,10 +23,13 @@ echo "==> 编译 (${JOBS} 并行)..."
 cmake --build "${BUILD_DIR}" --parallel "${JOBS}"
 
 echo ""
-if [ "${BUILD_TYPE,,}" = "debug" ]; then
-    mkdir -p build
-    cp "${BUILD_DIR}/${OUTPUT_NAME}" build/pcl-cgre_debug
-    echo "==> 完成: ./build/pcl-cgre_debug"
-else
-    echo "==> 完成: ./build/pcl-cgre"
+mkdir -p build
+cp "${BUILD_DIR}/${SRC_NAME}" "build/${DST_NAME}"
+
+if [ "${BUILD_DIR}" != "build" ]; then
+    cp "${BUILD_DIR}/pcl-cgre.gresource" build/pcl-cgre.gresource
+    rm -rf build/resources
+    cp -r "${BUILD_DIR}/resources" build/resources
 fi
+
+echo "==> 完成: ./build/${DST_NAME}"
