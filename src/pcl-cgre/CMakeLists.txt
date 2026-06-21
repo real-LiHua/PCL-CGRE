@@ -101,13 +101,11 @@ target_include_directories(pcl-cgre PRIVATE
     ${LIBCURL_INCLUDE_DIRS}
 )
 
-target_compile_options(pcl-cgre PRIVATE
-    -Wall
-    -Wextra
-    -Wpedantic
-    ${GTK4_CFLAGS_OTHER}
-    ${LIBADWAITA_CFLAGS_OTHER}
-)
+if(MSVC)
+    target_compile_options(pcl-cgre PRIVATE /W4 ${GTK4_CFLAGS_OTHER} ${LIBADWAITA_CFLAGS_OTHER})
+else()
+    target_compile_options(pcl-cgre PRIVATE -Wall -Wextra -Wpedantic ${GTK4_CFLAGS_OTHER} ${LIBADWAITA_CFLAGS_OTHER})
+endif()
 
 target_link_libraries(pcl-cgre
     pclcore_objs
