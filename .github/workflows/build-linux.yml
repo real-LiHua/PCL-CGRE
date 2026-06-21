@@ -1,0 +1,42 @@
+name: build-linux
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v7
+
+      - name: install dependencies
+        run: |
+          sudo apt update
+          sudo apt install libgtk-4-dev libadwaita-1-dev libfontconfig-dev \
+          libsoup-3.0-dev libcurl4-openssl-dev libjson-glib-dev cmake g++ \
+          blueprint-compiler libglib2.0-dev-bin nlohmann-json3-dev
+
+      - name: build
+        run: |
+          ./scripts/build.sh
+          ./scripts/build.sh debug
+
+      - name: upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: pcl-cgre_release
+          path: |
+            ./build/pcl-cgre
+            ./build/pcl-cgre.gresource
+            ./build/resources/
+
+      - name: upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: pcl-cgre_debug
+          path: |
+            ./build/pcl-cgre_debug
+            ./build/pcl-cgre.gresource
+            ./build/resources/
